@@ -628,7 +628,7 @@ class SROS_cp(SROS_vm):
         vrnetlab.run_command(["ip", "link", "set", "vcp-int", "up"])
         vrnetlab.run_command(["ip", "link", "set", "dev", "vcp-int", "mtu", "10000"])
 
-    def gen_nics(self):
+    def gen_nics(self): # pylint: disable=no-self-use
         """
         Override the parent's gen_nic function,
         since dataplane interfaces are not to be created for CPM
