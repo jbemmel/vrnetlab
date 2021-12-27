@@ -35,23 +35,43 @@ def trace(self, message, *args, **kws):
 
 logging.Logger.trace = trace
 
+# Default power type to use, SROS complains
+# "Class Power Shelf : wrong type inserted" when using "ac/hv" here
+DEFAULT_POWER = "dc"
+
+def LINE_CARD(chassis,card,mda,integrated=False,card_type=None):
+    """
+    Configures a line card in a distributed or integrated deployment model.
+    Note that it may be possible to omit configuring these explicitly
+    """
+    slot = "A" if integrated else "1"
+    return {
+      "timos_line": f"slot={slot} chassis={chassis} card={card} mda/1={mda}",
+      "card_config": f"""
+       /configure card 1 card-type {card_type if card_type else card}
+       /configure card 1 mda 1 mda-type {mda}
+      """,
+    }
+
 SROS_VARIANTS = {
     "ixr-e-big": {
         "deployment_model": "distributed",
         # control plane (CPM)
-        "max_nics": 34,
+        "max_nics": 28, # 24 + 2 + 2
         "cp": {
             "min_ram": 3,
-            "timos_line": "slot=A chassis=ixr-e card=cpm-ixr-e",
+            "timos_line": "slot=A chassis=ixr-e card=cpm-ixr-e/imm24-sfp++8-sfp28+2-qsfp28",
         },
         # line card (IOM/XCM)
         "lc": {
             "min_ram": 4,
-            "timos_line": "chassis=ixr-e slot=1 card=imm24-sfp++8-sfp28+2-qsfp28 mda/1=m24-sfp++8-sfp28+2-qsfp28",
-            "card_config": """/configure card 1 card-type imm24-sfp++8-sfp28+2-qsfp28
-            /configure card 1 mda 1 mda-type m24-sfp++8-sfp28+2-qsfp28
-            """,
+            ** LINE_CARD(chassis="ixr-e",card="cpm-ixr-e/imm24-sfp++8-sfp28+2-qsfp28",mda="m24-sfp++8-sfp28+2-qsfp28"),
         },
+        "connector": {
+         'type': 'c1-100g',
+         'ports': [ 33, 34 ]
+        },
+        "power": { 'modules': { 'ac/hv': 3, 'dc': 4 } },
     },
     #    "ixr-6": {
     #        "deployment_model": "distributed",
@@ -348,17 +368,19 @@ def gen_bof_config():
 
 
 class SROS_vm(vrnetlab.VM):
-    def __init__(self, username, password, ram, conn_mode, cpu=2, num=0):
+    def __init__(self, username, password, ram, conn_mode, cpu=2, num=0, port_count=0):
         super(SROS_vm, self).__init__(
             username, password, disk_image="/sros.qcow2", num=num, ram=ram
         )
         self.nic_type = "virtio-net-pci"
         self.conn_mode = conn_mode
+        self.power = DEFAULT_POWER # vSR emulates DC only
         self.uuid = "00000000-0000-0000-0000-000000000000"
         self.read_license()
         if not cpu or cpu == 0 or cpu == "0":
             cpu = 2
         self.cpu = cpu
+        self.port_count = port_count # Number of connected ports
         self.qemu_args.extend(["-cpu", "host", "-smp", f"{cpu}"])
 
     def bootstrap_spin(self):
@@ -400,6 +422,47 @@ class SROS_vm(vrnetlab.VM):
 
         return
 
+    def configure_power(self,power_cfg):
+        """
+        Configure power shelf/ves and modules
+        """
+        shelves = power_cfg['shelves'] if 'shelves' in power_cfg else 1
+        modules = power_cfg['modules']
+        if type(modules) is dict:
+            modules = modules[ self.power ] # 3(AC) or 4(DC)
+
+        if self.power == "dc": # vSIM default
+            power_shelf_type = f"ps-a{modules}-shelf-dc"
+            module_type = "ps-a-dc-6000"
+        else:
+            power_shelf_type = f"ps-b{modules}-shelf-ac/hv"
+            module_type = "ps-b-ac/hv-6000"
+
+        for s in range(1,shelves+1):
+            self.wait_write(f"/configure system power-shelf {s} power-shelf-type {power_shelf_type}")
+            for m in range(1,modules+1):
+                self.wait_write(f"/configure system power-shelf {s} power-module {m} power-module-type {module_type}")
+
+    def configure_ports(self):
+        """
+        Enable all connected ports, provision connectors & enable LLDP
+        """
+        for p in range(1,self.port_count+1):
+            portname = f"port 1/1/{p}"
+            # Some mda's use 1/1/c for breakout, on some ports
+            # XIOM: 1/x1/1/c[n]/1
+            if 'connector' in self.variant:
+                conn = self.variant['connector']
+                if 'ports' not in conn or p in conn['ports']:
+                    portname = f"port 1/{'x1/' if 'xiom' in conn else ''}1/c{p}"
+                    self.wait_write(f"/configure {portname} connector breakout {conn['type']}")
+                    self.wait_write(f"/configure {portname} no shutdown")
+                    portname += "/1" # Using only 1:1 breakout types
+
+            self.wait_write(f"/configure {portname} ethernet lldp dest-mac nearest-bridge admin-status tx-rx")
+            self.wait_write(f"/configure {portname} ethernet lldp dest-mac nearest-bridge tx-tlvs port-desc sys-name sys-desc")
+            self.wait_write(f"/configure {portname} no shutdown")
+
     def read_license(self):
         """Read the license file, if it exists, and extract the UUID and start
         time of the license
@@ -435,7 +498,7 @@ class SROS_integrated(SROS_vm):
     """Integrated VSR-SIM"""
 
     def __init__(
-        self, hostname, username, password, mode, num_nics, variant, conn_mode
+        self, hostname, username, password, mode, num_nics, variant, conn_mode, port_count
     ):
         cpu = variant.get("cpu")
         super(SROS_integrated, self).__init__(
@@ -444,6 +507,7 @@ class SROS_integrated(SROS_vm):
             cpu=cpu,
             ram=1024 * int(variant["min_ram"]),
             conn_mode=conn_mode,
+            port_count=port_count,
         )
         self.mode = mode
         self.num_nics = num_nics
@@ -506,6 +570,13 @@ class SROS_integrated(SROS_vm):
                 for l in iter(self.variant["card_config"].splitlines()):
                     self.wait_write(l)
 
+            # JvB: configure power modules
+            if "power" in self.variant:
+                self.configure_power( self.variant['power'] )
+
+            # JvB: Enable connected ports including connectors & LLDP rx/tx
+            self.configure_ports()
+
             # configure bof
             for l in iter(gen_bof_config()):
                 self.wait_write(l)
@@ -523,7 +594,7 @@ class SROS_cp(SROS_vm):
     """Control plane for distributed VSR-SIM"""
 
     def __init__(
-        self, hostname, username, password, mode, major_release, variant, conn_mode
+        self, hostname, username, password, mode, major_release, variant, conn_mode, port_count
     ):
         # cp - control plane. role is used to create a separate overlay image name
         self.role = "cp"
@@ -534,6 +605,7 @@ class SROS_cp(SROS_vm):
             cpu=cpu,
             ram=1024 * int(variant["cp"]["min_ram"]),
             conn_mode=conn_mode,
+            port_count=port_count,
         )
         self.mode = mode
         self.num_nics = 0
@@ -684,7 +756,7 @@ class SROS_lc(SROS_vm):
 
 
 class SROS(vrnetlab.VR):
-    def __init__(self, hostname, username, password, mode, variant_name, conn_mode):
+    def __init__(self, hostname, username, password, mode, variant_name, conn_mode, ports):
         super(SROS, self).__init__(username, password)
 
         if variant_name.lower() in SROS_VARIANTS:
@@ -753,6 +825,7 @@ class SROS(vrnetlab.VR):
                     major_release,
                     variant,
                     conn_mode,
+                    port_count=ports,
                 ),
                 SROS_lc(variant, conn_mode, variant["max_nics"]),
             ]
@@ -771,6 +844,7 @@ class SROS(vrnetlab.VR):
                     variant["max_nics"],
                     variant,
                     conn_mode=conn_mode,
+                    port_count=ports,
                 )
             ]
 
@@ -874,5 +948,6 @@ if __name__ == "__main__":
         mode=args.mode,
         variant_name=args.variant,
         conn_mode=args.connection_mode,
+        ports=int(os.environ['CLAB_INTFS']) if 'CLAB_INTFS' in os.environ else 0,
     )
     ia.start(add_fwd_rules=False)
