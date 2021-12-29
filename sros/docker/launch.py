@@ -6,7 +6,6 @@ import os
 import re
 import signal
 import sys
-import time
 import shutil
 import vrnetlab
 
@@ -39,25 +38,27 @@ logging.Logger.trace = trace
 # "Class Power Shelf : wrong type inserted" when using "ac/hv" here
 DEFAULT_POWER = "dc"
 
-def LINE_CARD(chassis,card,mda,integrated=False,card_type=None):
+
+def LINE_CARD(chassis, card, mda, integrated=False, card_type=None):
     """
     Configures a line card in a distributed or integrated deployment model.
     Note that it may be possible to omit configuring these explicitly
     """
     slot = "A" if integrated else "1"
     return {
-      "timos_line": f"slot={slot} chassis={chassis} card={card} mda/1={mda}",
-      "card_config": f"""
+        "timos_line": f"slot={slot} chassis={chassis} card={card} mda/1={mda}",
+        "card_config": f"""
        /configure card 1 card-type {card_type if card_type else card}
        /configure card 1 mda 1 mda-type {mda}
       """,
     }
 
+
 SROS_VARIANTS = {
     "ixr-e-big": {
         "deployment_model": "distributed",
         # control plane (CPM)
-        "max_nics": 34, # 24*10 + 8*25G + 2*100G (with connector)
+        "max_nics": 34,  # 24*10 + 8*25G + 2*100G (with connector)
         "cp": {
             "min_ram": 3,
             "timos_line": "slot=A chassis=ixr-e card=cpm-ixr-e/imm24-sfp++8-sfp28+2-qsfp28",
@@ -65,15 +66,14 @@ SROS_VARIANTS = {
         # line card (IOM/XCM)
         "lc": {
             "min_ram": 4,
-            ** LINE_CARD(chassis="ixr-e",
-                         card="cpm-ixr-e/imm24-sfp++8-sfp28+2-qsfp28",
-                         card_type="imm24-sfp++8-sfp28+2-qsfp28",
-                         mda="m24-sfp++8-sfp28+2-qsfp28"),
+            **LINE_CARD(
+                chassis="ixr-e",
+                card="cpm-ixr-e/imm24-sfp++8-sfp28+2-qsfp28",
+                card_type="imm24-sfp++8-sfp28+2-qsfp28",
+                mda="m24-sfp++8-sfp28+2-qsfp28",
+            ),
         },
-        "connector": {
-         'type': 'c1-100g',
-         'ports': [ 33, 34 ]
-        },
+        "connector": {"type": "c1-100g", "ports": [33, 34]},
         # /chassis power-supply are automatically provisioned by vSR itself
         # "power": { 'modules': { 'ac/hv': 3, 'dc': 4 } },
     },
@@ -103,11 +103,15 @@ SROS_VARIANTS = {
     "ixr-r6": {
         "deployment_model": "integrated",
         "cpu": 4,
-        "min_ram": 6,   # minimum RAM requirements
-        "max_nics": 10, # 6*10G, 4*25G
-        ** LINE_CARD(chassis="ixr-r6",
-                     card="cpiom-ixr-r6", card_type="iom-ixr-r6",
-                     mda="m6-10g-sfp++4-25g-sfp28",integrated=True),
+        "min_ram": 6,  # minimum RAM requirements
+        "max_nics": 10,  # 6*10G, 4*25G
+        **LINE_CARD(
+            chassis="ixr-r6",
+            card="cpiom-ixr-r6",
+            card_type="iom-ixr-r6",
+            mda="m6-10g-sfp++4-25g-sfp28",
+            integrated=True,
+        ),
     },
     "ixr-s": {
         "deployment_model": "distributed",
@@ -147,40 +151,44 @@ SROS_VARIANTS = {
         "min_ram": 6,  # minimum RAM requirements
         "max_nics": 36,
         # xiom/x1=iom-s-3.0t mda/x1/1=ms8-100gb-sfpdd+2-100gb-qsfp28
-        ** LINE_CARD(chassis="sr-1s",card="cpm-1s",card_type="xcm-1s",
-                     mda="s36-100gb-qsfp28",integrated=True),
-        "power": { 'modules': { 'ac/hv': 3, 'dc': 4 } },
-        "connector": { 'type': 'c1-100g' }
+        **LINE_CARD(
+            chassis="sr-1s",
+            card="cpm-1s",
+            card_type="xcm-1s",
+            mda="s36-100gb-qsfp28",
+            integrated=True,
+        ),
+        "power": {"modules": {"ac/hv": 3, "dc": 4}},
+        "connector": {"type": "c1-100g"},
     },
     "sr-2s": {
         "deployment_model": "distributed",
-        "max_nics": 10, # 8+2
-        "power": { 'modules': { 'ac/hv': 3, 'dc': 4 } },
+        "max_nics": 10,  # 8+2
+        "power": {"modules": {"ac/hv": 3, "dc": 4}},
         "cp": {
             "min_ram": 3,
-        # The 7750 SR-2s uses an integrated switch fabric module (SFM) design
+            # The 7750 SR-2s uses an integrated switch fabric module (SFM) design
             "timos_line": "slot=A chassis=sr-2s sfm=sfm-2s card=cpm-2s",
         },
         # line card (IOM/XCM), 1/x1/1/c[n]/1
-        "connector": { 'type': 'c1-100g', "xiom": True },
+        "connector": {"type": "c1-100g", "xiom": True},
         "lc": {
             "min_ram": 4,
             "timos_line": "slot=1 chassis=sr-2s sfm=sfm-2s card=xcm-2s xiom/x1=iom-s-3.0t mda/x1/1=ms8-100gb-sfpdd+2-100gb-qsfp28",
-            "card_config":
-             """
+            "card_config": """
              /configure sfm 1 sfm-type sfm-2s
              /configure sfm 2 sfm-type sfm-2s
              /configure card 1 card-type xcm-2s
              /configure card 1 xiom x1 xiom-type iom-s-3.0t level cr1600g+
              /configure card 1 xiom x1 mda 1 mda-type ms8-100gb-sfpdd+2-100gb-qsfp28
-             """
+             """,
         },
     },
     "sr-14s": {
         "deployment_model": "distributed",
         # control plane (CPM)
         "max_nics": 36,
-        "power": { 'modules': 10, 'shelves': 2 },
+        "power": {"modules": 10, "shelves": 2},
         "cp": {
             "min_ram": 4,
             "timos_line": "slot=A chassis=SR-14s sfm=sfm-s card=cpm2-s",
@@ -189,8 +197,7 @@ SROS_VARIANTS = {
         "lc": {
             "min_ram": 6,
             "timos_line": "slot=1 chassis=SR-14s sfm=sfm-s card=xcm-14s mda/1=s36-100gb-qsfp28",
-            "card_config":
-             """
+            "card_config": """
              /configure sfm 1 sfm-type sfm-s
              /configure sfm 2 sfm-type sfm-s
              /configure sfm 3 sfm-type sfm-s
@@ -202,17 +209,21 @@ SROS_VARIANTS = {
              /configure card 1 card-type xcm-14s
              /configure card 1 mda 1 mda-type s36-100gb-qsfp28
              """,
-
         },
-        "connector": { 'type': 'c1-100g' }
+        "connector": {"type": "c1-100g"},
     },
     "sr-1": {
         "deployment_model": "integrated",
         "min_ram": 5,  # minimum RAM requirements
         "max_nics": 12,
-        ** LINE_CARD(chassis="sr-1",card="cpm-1",card_type="iom-1",
-                     mda="me12-100gb-qsfp28",integrated=True),
-        "connector": { 'type': 'c1-100g' }
+        **LINE_CARD(
+            chassis="sr-1",
+            card="cpm-1",
+            card_type="iom-1",
+            mda="me12-100gb-qsfp28",
+            integrated=True,
+        ),
+        "connector": {"type": "c1-100g"},
     },
     "sr-1e": {
         "deployment_model": "distributed",
@@ -225,10 +236,9 @@ SROS_VARIANTS = {
         # line card (IOM/XCM)
         "lc": {
             "min_ram": 4,
-            ** LINE_CARD(chassis="sr-1e",card="iom-e",mda="me40-1gb-csfp"),
+            **LINE_CARD(chassis="sr-1e", card="iom-e", mda="me40-1gb-csfp"),
         },
     },
-
     # JvB: added for macsec demo support
     "sr-a4": {
         "deployment_model": "distributed",
@@ -241,7 +251,7 @@ SROS_VARIANTS = {
         # line card (IOM/XCM)
         "lc": {
             "min_ram": 4,
-            ** LINE_CARD(chassis="sr-a4",card="iom-a",mda="maxp10-10/1gb-msec-sfp+"),
+            **LINE_CARD(chassis="sr-a4", card="iom-a", mda="maxp10-10/1gb-msec-sfp+"),
         },
     },
 }
@@ -393,13 +403,13 @@ class SROS_vm(vrnetlab.VM):
         )
         self.nic_type = "virtio-net-pci"
         self.conn_mode = conn_mode
-        self.power = DEFAULT_POWER # vSR emulates DC only
+        self.power = DEFAULT_POWER  # vSR emulates DC only
         self.uuid = "00000000-0000-0000-0000-000000000000"
         self.read_license()
         if not cpu or cpu == 0 or cpu == "0":
             cpu = 2
         self.cpu = cpu
-        self.port_count = port_count # Number of connected ports
+        self.port_count = port_count  # Number of connected ports
         self.qemu_args.extend(["-cpu", "host", "-smp", f"{cpu}"])
 
     def bootstrap_spin(self):
@@ -441,45 +451,55 @@ class SROS_vm(vrnetlab.VM):
 
         return
 
-    def configure_power(self,power_cfg):
+    def configure_power(self, power_cfg):
         """
         Configure power shelf/ves and modules
         """
-        shelves = power_cfg['shelves'] if 'shelves' in power_cfg else 1
-        modules = power_cfg['modules']
+        shelves = power_cfg["shelves"] if "shelves" in power_cfg else 1
+        modules = power_cfg["modules"]
         if type(modules) is dict:
-            modules = modules[ self.power ] # 3(AC) or 4(DC)
+            modules = modules[self.power]  # 3(AC) or 4(DC)
 
-        if self.power == "dc": # vSIM default
+        if self.power == "dc":  # vSIM default
             power_shelf_type = f"ps-a{modules}-shelf-dc"
             module_type = "ps-a-dc-6000"
         else:
             power_shelf_type = f"ps-b{modules}-shelf-ac/hv"
             module_type = "ps-b-ac/hv-6000"
 
-        for s in range(1,shelves+1):
-            self.wait_write(f"/configure system power-shelf {s} power-shelf-type {power_shelf_type}")
-            for m in range(1,modules+1):
-                self.wait_write(f"/configure system power-shelf {s} power-module {m} power-module-type {module_type}")
+        for s in range(1, shelves + 1):
+            self.wait_write(
+                f"/configure system power-shelf {s} power-shelf-type {power_shelf_type}"
+            )
+            for m in range(1, modules + 1):
+                self.wait_write(
+                    f"/configure system power-shelf {s} power-module {m} power-module-type {module_type}"
+                )
 
     def configure_ports(self):
         """
         Enable all connected ports, provision connectors & enable LLDP
         """
-        for p in range(1,self.port_count+1):
+        for p in range(1, self.port_count + 1):
             portname = f"port 1/1/{p}"
             # Some mda's use 1/1/c for breakout, on some ports
             # XIOM: 1/x1/1/c[n]/1
-            if 'connector' in self.variant:
-                conn = self.variant['connector']
-                if 'ports' not in conn or p in conn['ports']:
+            if "connector" in self.variant:
+                conn = self.variant["connector"]
+                if "ports" not in conn or p in conn["ports"]:
                     portname = f"port 1/{'x1/' if 'xiom' in conn else ''}1/c{p}"
-                    self.wait_write(f"/configure {portname} connector breakout {conn['type']}")
+                    self.wait_write(
+                        f"/configure {portname} connector breakout {conn['type']}"
+                    )
                     self.wait_write(f"/configure {portname} no shutdown")
-                    portname += "/1" # Using only 1:1 breakout types
+                    portname += "/1"  # Using only 1:1 breakout types
 
-            self.wait_write(f"/configure {portname} ethernet lldp dest-mac nearest-bridge admin-status tx-rx")
-            self.wait_write(f"/configure {portname} ethernet lldp dest-mac nearest-bridge tx-tlvs port-desc sys-name sys-desc")
+            self.wait_write(
+                f"/configure {portname} ethernet lldp dest-mac nearest-bridge admin-status tx-rx"
+            )
+            self.wait_write(
+                f"/configure {portname} ethernet lldp dest-mac nearest-bridge tx-tlvs port-desc sys-name sys-desc"
+            )
             self.wait_write(f"/configure {portname} no shutdown")
 
     def read_license(self):
@@ -517,7 +537,15 @@ class SROS_integrated(SROS_vm):
     """Integrated VSR-SIM"""
 
     def __init__(
-        self, hostname, username, password, mode, num_nics, variant, conn_mode, port_count
+        self,
+        hostname,
+        username,
+        password,
+        mode,
+        num_nics,
+        variant,
+        conn_mode,
+        port_count,
     ):
         cpu = variant.get("cpu")
         super(SROS_integrated, self).__init__(
@@ -591,7 +619,7 @@ class SROS_integrated(SROS_vm):
 
             # JvB: configure power modules
             if "power" in self.variant:
-                self.configure_power( self.variant['power'] )
+                self.configure_power(self.variant["power"])
 
             # JvB: Enable connected ports including connectors & LLDP rx/tx
             self.configure_ports()
@@ -613,7 +641,15 @@ class SROS_cp(SROS_vm):
     """Control plane for distributed VSR-SIM"""
 
     def __init__(
-        self, hostname, username, password, mode, major_release, variant, conn_mode, port_count
+        self,
+        hostname,
+        username,
+        password,
+        mode,
+        major_release,
+        variant,
+        conn_mode,
+        port_count,
     ):
         # cp - control plane. role is used to create a separate overlay image name
         self.role = "cp"
@@ -644,7 +680,7 @@ class SROS_cp(SROS_vm):
         vrnetlab.run_command(["ip", "link", "set", "vcp-int", "up"])
         vrnetlab.run_command(["ip", "link", "set", "dev", "vcp-int", "mtu", "10000"])
 
-    def gen_nics(self): # pylint: disable=no-self-use
+    def gen_nics(self):  # pylint: disable=no-self-use
         """
         Override the parent's gen_nic function,
         since dataplane interfaces are not to be created for CPM
@@ -700,7 +736,7 @@ class SROS_cp(SROS_vm):
 
             # configure power modules
             if "power" in self.variant:
-                self.configure_power( self.variant['power'] )
+                self.configure_power(self.variant["power"])
 
             # Enable connected ports including LLDP rx/tx
             self.configure_ports()
@@ -782,7 +818,9 @@ class SROS_lc(SROS_vm):
 
 
 class SROS(vrnetlab.VR):
-    def __init__(self, hostname, username, password, mode, variant_name, conn_mode, ports):
+    def __init__(
+        self, hostname, username, password, mode, variant_name, conn_mode, ports
+    ):
         super(SROS, self).__init__(username, password)
 
         if variant_name.lower() in SROS_VARIANTS:
@@ -835,10 +873,24 @@ class SROS(vrnetlab.VR):
         )
         vrnetlab.run_command(["ip", "link", "set", "br-mgmt", "up"])
         vrnetlab.run_command(
-            ["ip", "addr", "add", "dev", "br-mgmt", f"{BRIDGE_V4_ADDR}/{V4_PREFIX_LENGTH}"]
+            [
+                "ip",
+                "addr",
+                "add",
+                "dev",
+                "br-mgmt",
+                f"{BRIDGE_V4_ADDR}/{V4_PREFIX_LENGTH}",
+            ]
         )
         vrnetlab.run_command(
-            ["ip", "addr", "add", "dev", "br-mgmt", f"{BRIDGE_V6_ADDR}/{V6_PREFIX_LENGTH}"]
+            [
+                "ip",
+                "addr",
+                "add",
+                "dev",
+                "br-mgmt",
+                f"{BRIDGE_V6_ADDR}/{V6_PREFIX_LENGTH}",
+            ]
         )
 
         if variant["deployment_model"] == "distributed":
@@ -957,7 +1009,9 @@ if __name__ == "__main__":
     )
     # allow sros breakout to management network by NATing via eth0
     vrnetlab.run_command("iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE".split())
-    vrnetlab.run_command("ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE".split())
+    vrnetlab.run_command(
+        "ip6tables -t nat -A POSTROUTING -o eth0 -j MASQUERADE".split()
+    )
 
     logger.debug(
         f"acting flags: username '{args.username}', password '{args.password}', connection-mode '{args.connection_mode}', variant '{args.variant}'"
@@ -974,6 +1028,6 @@ if __name__ == "__main__":
         mode=args.mode,
         variant_name=args.variant,
         conn_mode=args.connection_mode,
-        ports=int(os.environ['CLAB_INTFS']) if 'CLAB_INTFS' in os.environ else 0,
+        ports=int(os.environ["CLAB_INTFS"]) if "CLAB_INTFS" in os.environ else 0,
     )
     ia.start(add_fwd_rules=False)
