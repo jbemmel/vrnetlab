@@ -228,6 +228,22 @@ SROS_VARIANTS = {
             ** LINE_CARD(chassis="sr-1e",card="iom-e",mda="me40-1gb-csfp"),
         },
     },
+
+    # JvB: added for macsec demo support
+    "sr-a4": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 10,
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "slot=A chassis=sr-a4 card=cpm-a",
+        },
+        # line card (IOM/XCM)
+        "lc": {
+            "min_ram": 4,
+            ** LINE_CARD(chassis="sr-a4",card="iom-a",mda="maxp10-10/1gb-msec-sfp+"),
+        },
+    },
 }
 
 SROS_COMMON_CFG = """/configure system name {name}
