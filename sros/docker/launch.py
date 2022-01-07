@@ -104,12 +104,12 @@ SROS_VARIANTS = {
         "deployment_model": "integrated",
         "cpu": 4,
         "min_ram": 6,  # minimum RAM requirements
-        "max_nics": 10,  # 6*10G, 4*25G
+        "max_nics": 7, # 6*10G, 1*100G
         **LINE_CARD(
             chassis="ixr-r6",
             card="cpiom-ixr-r6",
             card_type="iom-ixr-r6",
-            mda="m6-10g-sfp++4-25g-sfp28",
+            mda="m6-10g-sfp++1-100g-qsfp28", # Supports MACsec
             integrated=True,
         ),
     },
@@ -160,6 +160,19 @@ SROS_VARIANTS = {
         ),
         "power": {"modules": {"ac/hv": 3, "dc": 4}},
         "connector": {"type": "c1-100g"},
+    },
+    "sr-1s-macsec": {
+        "deployment_model": "integrated",
+        "min_ram": 6,  # minimum RAM requirements xcm-1s
+        "max_nics": 20,
+        "timos_line": "slot=A chassis=sr-1s card=xcm-1s xiom/x1=iom-s-3.0t mda/x1/1=ms16-100gb-sfpdd+4-100gb-qsfp28",
+        "card_config": """
+         /configure card 1 card-type xcm-1s
+         /configure card 1 xiom x1 xiom-type iom-s-3.0t level cr1600g+
+         /configure card 1 xiom x1 mda 1 mda-type ms16-100gb-sfpdd+4-100gb-qsfp28
+         """,
+        "power": {"modules": {"ac/hv": 3, "dc": 4}},
+        "connector": { "type": "c1-100g", "xiom": True },
     },
     "sr-2s": {
         "deployment_model": "distributed",
@@ -298,7 +311,7 @@ V6_PREFIX_LENGTH = "127"
 def parse_custom_variant(self, cfg):
     """Parse custom variant definition from a users input returning a variant dict
     an example of user defined variant configuration
-    1) integrated:  cpu=2 ram=4 max_nics=6 chassis=sr-1 slot=A card=cpm-1 slot=1 mda/1=me6-100gb-qsfp28
+    1) integrated:  cpu=2 ram=4 max_nics=6 chassis=sr-1 slot=A card=cpm-1 mda/1=me6-100gb-qsfp28
     2) distributed: cp: cpu=2 ram=4 chassis=ixr-e slot=A card=cpm-ixr-e ___ lc: cpu=2 ram=4 max_nics=34 chassis=ixr-e slot=1 card=imm24-sfp++8-sfp28+2-qsfp28 mda/1=m24-sfp++8-sfp28+2-qsfp28
     """
 
