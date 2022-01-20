@@ -146,6 +146,18 @@ SROS_VARIANTS = {
             """,
         },
     },
+    "ixr-ec": {
+        "deployment_model": "integrated",
+        "min_ram": 4,  # minimum RAM requirements
+        "max_nics": 30,
+        **LINE_CARD(
+            chassis="ixr-ec",
+            card="cpm-ixr-ec",
+            mda="m4-1g-tx+20-1g-sfp+6-10g-sfp+",
+            integrated=True,
+        ),
+        "power": {"modules": {"ac/hv": 3, "dc": 4}},
+    },
     "sr-1s": {
         "deployment_model": "integrated",
         "min_ram": 6,  # minimum RAM requirements
@@ -252,7 +264,25 @@ SROS_VARIANTS = {
             **LINE_CARD(chassis="sr-1e", card="iom-e", mda="me40-1gb-csfp"),
         },
     },
-    # JvB: added for macsec demo support
+    # JvB: added for macsec/IPSec demo support
+    "sr-1e-sec": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 12,
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "slot=A chassis=sr-1e card=cpm-e",
+        },
+        # line card (IOM/XCM)
+        "lc": {
+            "min_ram": 4,
+            "timos_line": "chassis=sr-1e slot=1 card=iom-e mda/1=me12-10/1gb-sfp+ mda/2=isa2-tunnel",
+            "card_config": """/configure card 1 card-type iom-e
+            /configure card 1 mda 1 mda-type me12-10/1gb-sfp+
+            /configure card 1 mda 2 mda-type isa2-tunnel
+            """,
+        },
+    },
     "sr-a4": {
         "deployment_model": "distributed",
         # control plane (CPM)
@@ -593,9 +623,9 @@ class SROS_integrated(SROS_vm):
         res.append("-netdev")
         res.append("bridge,br=br-mgmt,id=br-mgmt" % {"i": 0})
 
-        if "chassis=ixr-r6" in self.variant["timos_line"]:
+        if "chassis=ixr-r6" in self.variant["timos_line"] or "chassis=ixr-ec" in self.variant["timos_line"]:
             logger.debug(
-                "detected ixr-r6 chassis, creating a dummy network device for SFM connection"
+                "detected ixr-r6/ec chassis, creating a dummy network device for SFM connection"
             )
             res.append(f"-device virtio-net-pci,netdev=dummy,mac={vrnetlab.gen_mac(0)}")
             res.append(f"-netdev tap,ifname=sfm-dummy,id=dummy,script=no,downscript=no")
