@@ -61,15 +61,14 @@ SROS_VARIANTS = {
         "max_nics": 34,  # 24*10 + 8*25G + 2*100G (with connector)
         "cp": {
             "min_ram": 3,
-            "timos_line": "slot=A chassis=ixr-e card=cpm-ixr-e/imm24-sfp++8-sfp28+2-qsfp28",
+            "timos_line": "slot=A chassis=ixr-e card=cpm-ixr-e",
         },
         # line card (IOM/XCM)
         "lc": {
             "min_ram": 4,
             **LINE_CARD(
                 chassis="ixr-e",
-                card="cpm-ixr-e/imm24-sfp++8-sfp28+2-qsfp28",
-                card_type="imm24-sfp++8-sfp28+2-qsfp28",
+                card="imm24-sfp++8-sfp28+2-qsfp28",
                 mda="m24-sfp++8-sfp28+2-qsfp28",
             ),
         },
@@ -136,7 +135,7 @@ SROS_VARIANTS = {
         "max_nics": 18,
         "cp": {
             "min_ram": 3,
-            "timos_line": "slot=A chassis=ixr-e card=imm14-10g-sfp++4-1g-tx",
+            "timos_line": "slot=A chassis=ixr-e card=cpm-ixr-e",
         },
         # line card (IOM/XCM)
         "lc": {
