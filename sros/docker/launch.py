@@ -297,6 +297,21 @@ SROS_VARIANTS = {
             **LINE_CARD(chassis="sr-a4", card="iom-a", mda="maxp10-10/1gb-msec-sfp+"),
         },
     },
+
+    "sr-1x": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 48,
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "slot=A chassis=sr-1x card=cpm-1x",
+        },
+        # line card (IOM/XCM)
+        "lc": {
+            "min_ram": 4,
+            **LINE_CARD(chassis="sr-1x", card="i48-800g-qsfpdd-1x", mda="m48-800g-qsfpdd-1x"),
+        },
+    },
 }
 
 SROS_COMMON_CFG = """/configure system name {name}
