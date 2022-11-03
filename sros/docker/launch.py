@@ -303,12 +303,12 @@ SROS_VARIANTS = {
         "max_nics": 48,
         "cp": {
             "min_ram": 4,
-            "timos_line": "slot=A chassis=sr-1x card=cpm-1x",
+            "timos_line": "slot=A chassis=sr-1x-48D card=cpm-1x",
         },
         # line card (IOM/XCM)
         "lc": {
             "min_ram": 4,
-            **LINE_CARD(chassis="sr-1x", card="i48-800g-qsfpdd-1x", mda="m48-800g-qsfpdd-1x"),
+            **LINE_CARD(chassis="sr-1x-48D", card="i48-800g-qsfpdd-1x", mda="m48-800g-qsfpdd-1x"),
         },
     },
 }
