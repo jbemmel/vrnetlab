@@ -125,7 +125,7 @@ SROS_VARIANTS = {
     "ixr-e-small": {
         "deployment_model": "distributed",
         # control plane (CPM)
-        "max_nics": 18,
+        "max_nics": 18, # Note: vSIM supports max 8 NICs, up to 1/1/6
         "cp": {
             "min_ram": 3,
             "timos_line": "slot=A chassis=ixr-e card=imm14-10g-sfp++4-1g-tx",
@@ -549,9 +549,9 @@ class SROS_integrated(SROS_vm):
         res.append("-netdev")
         res.append("bridge,br=br-mgmt,id=br-mgmt" % {"i": 0})
 
-        if "chassis=ixr-r6" in self.variant["timos_line"]:
+        if "chassis=ixr-r6" in self.variant["timos_line"] or "chassis=ixr-ec" in self.variant["timos_line"]:
             logger.debug(
-                "detected ixr-r6 chassis, creating a dummy network device for SFM connection"
+                "detected ixr-r6/ec chassis, creating a dummy network device for SFM connection"
             )
             res.append(f"-device virtio-net-pci,netdev=dummy,mac={vrnetlab.gen_mac(0)}")
             res.append(f"-netdev tap,ifname=sfm-dummy,id=dummy,script=no,downscript=no")
