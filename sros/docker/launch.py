@@ -226,10 +226,6 @@ SROS_VARIANTS = {
              /configure sfm 2 sfm-type sfm2-s
              /configure sfm 3 sfm-type sfm2-s
              /configure sfm 4 sfm-type sfm2-s
-             /configure sfm 5 sfm-type sfm2-s
-             /configure sfm 6 sfm-type sfm2-s
-             /configure sfm 7 sfm-type sfm2-s
-             /configure sfm 8 sfm-type sfm2-s
              /configure card 1 card-type xcm2-7s
              /configure card 1 mda 1 mda-type x2-s36-800g-qsfpdd-18.0t
              """,
@@ -254,10 +250,6 @@ SROS_VARIANTS = {
              /configure sfm 2 sfm-type sfm-s
              /configure sfm 3 sfm-type sfm-s
              /configure sfm 4 sfm-type sfm-s
-             /configure sfm 5 sfm-type sfm-s
-             /configure sfm 6 sfm-type sfm-s
-             /configure sfm 7 sfm-type sfm-s
-             /configure sfm 8 sfm-type sfm-s
              /configure card 1 card-type xcm-7s
              /configure card 1 mda 1 mda-type s36-100gb-qsfp28
              """,
