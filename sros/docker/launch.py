@@ -208,6 +208,62 @@ SROS_VARIANTS = {
              """,
         },
     },
+    "sr-7s": { # defaults to FP5 cards
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 36,
+        "power": {"modules": 10, "shelves": 2},
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "slot=A chassis=SR-7s sfm=sfm2-s card=cpm2-s",
+        },
+        # line card (IOM/XCM)
+        "lc": {
+            "min_ram": 6,
+            "timos_line": "slot=1 chassis=SR-7s sfm=sfm2-s card=xcm2-7s mda/1=x2-s36-800g-qsfpdd-18.0t",
+            "card_config": """
+             /configure sfm 1 sfm-type sfm2-s
+             /configure sfm 2 sfm-type sfm2-s
+             /configure sfm 3 sfm-type sfm2-s
+             /configure sfm 4 sfm-type sfm2-s
+             /configure sfm 5 sfm-type sfm2-s
+             /configure sfm 6 sfm-type sfm2-s
+             /configure sfm 7 sfm-type sfm2-s
+             /configure sfm 8 sfm-type sfm2-s
+             /configure card 1 card-type xcm2-7s
+             /configure card 1 mda 1 mda-type x2-s36-800g-qsfpdd-18.0t
+             """,
+        },
+        "connector": {"type": "c1-100g"},
+    },
+    "sr-7s-fp4": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 36,
+        "power": {"modules": 10, "shelves": 2},
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "slot=A chassis=SR-7s sfm=sfm-s card=cpm-s",
+        },
+        # line card (IOM/XCM)
+        "lc": {
+            "min_ram": 6,
+            "timos_line": "slot=1 chassis=SR-7s sfm=sfm-s card=xcm-7s mda/1=s36-100gb-qsfp28",
+            "card_config": """
+             /configure sfm 1 sfm-type sfm-s
+             /configure sfm 2 sfm-type sfm-s
+             /configure sfm 3 sfm-type sfm-s
+             /configure sfm 4 sfm-type sfm-s
+             /configure sfm 5 sfm-type sfm-s
+             /configure sfm 6 sfm-type sfm-s
+             /configure sfm 7 sfm-type sfm-s
+             /configure sfm 8 sfm-type sfm-s
+             /configure card 1 card-type xcm-7s
+             /configure card 1 mda 1 mda-type s36-100gb-qsfp28
+             """,
+        },
+        "connector": {"type": "c1-100g"},
+    },
     "sr-14s": {
         "deployment_model": "distributed",
         # control plane (CPM)
