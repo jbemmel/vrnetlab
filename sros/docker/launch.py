@@ -81,6 +81,7 @@ SROS_VARIANTS = {
         "deployment_model": "distributed",
         # control plane (CPM)
         "max_nics": 34,  # 24*10 + 8*25G + 2*100G (with connector)
+        "connector": {"type": "c1-100g", "ports": [33, 34]},
         "cp": {
             "min_ram": 3,
             "timos_line": "slot=A chassis=ixr-e card=cpm-ixr-e",
@@ -195,6 +196,7 @@ SROS_VARIANTS = {
             integrated=True,
         ),
         "power": {"modules": {"ac/hv": 3, "dc": 4}},
+        "connector": {"type": "c1-100g"},
     },
     "sr-1s-macsec": {
         "deployment_model": "integrated",
@@ -207,11 +209,13 @@ SROS_VARIANTS = {
         /configure card 1 xiom x1 mda 1 mda-type ms16-100gb-sfpdd+4-100gb-qsfp28
          """,
         "power": {"modules": {"ac/hv": 3, "dc": 4}},
+        "connector": { "type": "c1-100g", "xiom": True }, # TODO derive XIOM flag from timos_line
     },
     "sr-2s": {
         "deployment_model": "distributed",
         "max_nics": 10,  # 8+2
         "power": {"modules": {"ac/hv": 3, "dc": 4}},
+        "connector": {"type": "c1-100g", "xiom": True},
         "cp": {
             "min_ram": 3,
             # The 7750 SR-2s uses an integrated switch fabric module (SFM) design
@@ -236,6 +240,7 @@ SROS_VARIANTS = {
         # control plane (CPM)
         "max_nics": 36,
         "power": {"modules": 10, "shelves": 2},
+        "connector": {"type": "c1-100g"},
         "cp": {
             "min_ram": 4,
             "timos_line": "slot=A chassis=SR-7s sfm=sfm2-s card=cpm2-s",
@@ -290,6 +295,7 @@ SROS_VARIANTS = {
         # control plane (CPM)
         "max_nics": 36,
         "power": {"modules": 10, "shelves": 2},
+        "connector": {"type": "c1-100g"},
         "cp": {
             "min_ram": 4,
             "timos_line": "slot=A chassis=SR-14s sfm=sfm-s card=cpm2-s",
@@ -670,6 +676,32 @@ class SROS_vm(vrnetlab.VM):
 
         return
 
+    def configure_ports(self):
+        """
+        Enable all connected ports, provision connectors & enable LLDP
+        """
+        for p in range(1, self.port_count + 1):
+            portname = f"port 1/1/{p}"
+            # Some mda's use 1/1/c for breakout, on some ports
+            # XIOM: 1/x1/1/c[n]/1
+            if "connector" in self.variant:
+                conn = self.variant["connector"]
+                if "ports" not in conn or p in conn["ports"]:
+                    portname = f"port 1/{'x1/' if 'xiom' in conn else ''}1/c{p}"
+                    self.wait_write(
+                        f"/configure {portname} connector breakout {conn['type']}"
+                    )
+                    self.wait_write(f"/configure {portname} no shutdown")
+                    portname += "/1"  # Using only 1:1 breakout types
+
+            self.wait_write(
+                f"/configure {portname} ethernet lldp dest-mac nearest-bridge admin-status tx-rx"
+            )
+            self.wait_write(
+                f"/configure {portname} ethernet lldp dest-mac nearest-bridge tx-tlvs port-desc sys-name sys-desc"
+            )
+            self.wait_write(f"/configure {portname} no shutdown")
+
     def read_license(self):
         """Read the license file, if it exists, and extract the UUID and start
         time of the license
@@ -809,6 +841,9 @@ class SROS_vm(vrnetlab.VM):
             # configure power modules
             if "power" in self.variant:
                 self.configure_power(self.variant["power"])
+
+            # Enable connected ports including LLDP rx/tx
+            self.configure_ports()
 
             self.commitConfig()
 
