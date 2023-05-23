@@ -332,6 +332,7 @@ SROS_VARIANTS = {
             mda="me12-100gb-qsfp28",
             integrated=True,
         ),
+        "connector": {"type": "c1-100g"},
     },
     "sr-1e": {
         "deployment_model": "distributed",
@@ -625,7 +626,7 @@ def gen_bof_config():
 
 
 class SROS_vm(vrnetlab.VM):
-    def __init__(self, username, password, ram, conn_mode, cpu=2, num=0):
+    def __init__(self, username, password, ram, conn_mode, cpu=2, num=0, port_count=0):
         super().__init__(username, password, disk_image="/sros.qcow2", num=num, ram=ram)
         self.nic_type = "virtio-net-pci"
         self.conn_mode = conn_mode
@@ -636,6 +637,7 @@ class SROS_vm(vrnetlab.VM):
             cpu = 2
         self.cpu = cpu
         self.qemu_args.extend(["-cpu", "host", "-smp", f"{cpu}"])
+        self.port_count = port_count  # Number of connected ports
 
     def bootstrap_spin(self):
         """This function should be called periodically to do work."""
@@ -866,7 +868,7 @@ class SROS_integrated(SROS_vm):
     """Integrated VSR-SIM"""
 
     def __init__(
-        self, hostname, username, password, mode, num_nics, variant, conn_mode
+        self, hostname, username, password, mode, num_nics, variant, conn_mode, port_count
     ):
         ram: int = vrnetlab.getMem("integrated", variant.get("min_ram"))
         cpu: int = vrnetlab.getCpu("integrated", variant.get("cpu"))
@@ -877,6 +879,7 @@ class SROS_integrated(SROS_vm):
             cpu=cpu,
             ram=ram,
             conn_mode=conn_mode,
+            port_count=port_count,
         )
         self.mode = mode
         self.role = "integrated"
@@ -919,7 +922,7 @@ class SROS_integrated(SROS_vm):
 class SROS_cp(SROS_vm):
     """Control plane for distributed VSR-SIM"""
 
-    def __init__(self, hostname, username, password, mode, variant, conn_mode):
+    def __init__(self, hostname, username, password, mode, variant, conn_mode, port_count):
         # cp - control plane. role is used to create a separate overlay image name
         self.role = "cp"
 
@@ -932,6 +935,7 @@ class SROS_cp(SROS_vm):
             cpu=cpu,
             ram=ram,
             conn_mode=conn_mode,
+            port_count=port_count,
         )
         self.mode = mode
         self.num_nics = 0
@@ -1053,7 +1057,7 @@ class SROS_lc(SROS_vm):
 
 # SROS is main class for VSR-SIM
 class SROS(vrnetlab.VR):
-    def __init__(self, hostname, username, password, mode, variant_name, conn_mode):
+    def __init__(self, hostname, username, password, mode, variant_name, conn_mode, port_count):
         super().__init__(username, password)
 
         if variant_name.lower() in SROS_VARIANTS:
@@ -1064,7 +1068,7 @@ class SROS(vrnetlab.VR):
                     parse_variant_line(lc.get("timos_line", ""), lc)
                     for lc in variant["lcs"]
                 ]
-                variant["lsc"] = sort_lc_lines_by_slot(variant["lcs"])
+                variant["lcs"] = sort_lc_lines_by_slot(variant["lcs"])
         else:
             variant = parse_custom_variant(variant_name)
 
@@ -1100,6 +1104,7 @@ class SROS(vrnetlab.VR):
                     mode,
                     variant,
                     conn_mode,
+                    port_count=port_count,
                 )
             ]
 
@@ -1164,6 +1169,7 @@ class SROS(vrnetlab.VR):
                     variant["max_nics"],
                     variant,
                     conn_mode=conn_mode,
+                    port_count=port_count,
                 )
             ]
 
@@ -1344,5 +1350,6 @@ if __name__ == "__main__":
         mode=args.mode,
         variant_name=args.variant,
         conn_mode=args.connection_mode,
+        port_count=int(os.environ["CLAB_INTFS"]) if "CLAB_INTFS" in os.environ else 0,
     )
     ia.start(add_fwd_rules=False)
