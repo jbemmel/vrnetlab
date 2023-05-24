@@ -212,6 +212,7 @@ SROS_VARIANTS = {
     },
 
     # To show 800G, based on https://documentation.nokia.com/sr/23-3-1/pdf/vSIM_Installation_and_Setup_Guide_23.3.R1.pdf
+    # Requires vSIM 23.3.R1
     "sr-1-24d": {
         "deployment_model": "distributed",
         "max_nics": 24,
@@ -414,6 +415,7 @@ SROS_VARIANTS = {
             "timos_line": "slot=A chassis=sr-1x-48D card=cpm-1x",
         },
         # line card (IOM/XCM)
+        "connector": {"type": "c1-800g"},
         "lcs": [
             {
                 "min_ram": 4,
@@ -702,6 +704,8 @@ class SROS_vm(vrnetlab.VM):
         """
         Enable all connected ports, provision connectors & enable LLDP
         """
+        ENABLE = "no shutdown" if SROS_VERSION.major <= 22 else "admin-state enable"
+
         for p in range(1, self.port_count + 1):
             portname = f"port 1/1/{p}"
             # Some mda's use 1/1/c for breakout, on some ports
@@ -713,16 +717,16 @@ class SROS_vm(vrnetlab.VM):
                     self.wait_write(
                         f"/configure {portname} connector breakout {conn['type']}"
                     )
-                    self.wait_write(f"/configure {portname} no shutdown")
+                    self.wait_write(f"/configure {portname} {ENABLE}")
                     portname += "/1"  # Using only 1:1 breakout types
 
             self.wait_write(
-                f"/configure {portname} ethernet lldp dest-mac nearest-bridge admin-status tx-rx"
+                f"/configure {portname} ethernet lldp dest-mac nearest-bridge receive true transmit true"
             )
             self.wait_write(
                 f"/configure {portname} ethernet lldp dest-mac nearest-bridge tx-tlvs port-desc sys-name sys-desc"
             )
-            self.wait_write(f"/configure {portname} no shutdown")
+            self.wait_write(f"/configure {portname} {ENABLE}")
 
     def read_license(self):
         """Read the license file, if it exists, and extract the UUID and start
@@ -1244,7 +1248,7 @@ class SROS(vrnetlab.VR):
                 SROS_VERSION.minor = int(match.group(3))
                 SROS_VERSION.patch = int(match.group(4))
                 self.logger.info(f"Parsed SR OS version: {SROS_VERSION}")
-                break
+                return
 
         self.logger.error("Could not extract version from qcow2 image name")
 
