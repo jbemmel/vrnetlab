@@ -187,7 +187,6 @@ SROS_VARIANTS = {
         "deployment_model": "integrated",
         "min_ram": 6,  # minimum RAM requirements
         "max_nics": 36,
-        "timos_line": "chassis=sr-1s slot=A card=xcm-1s mda/1=s36-100gb-qsfp28",
         **line_card_config(
             chassis="sr-1s",
             card="cpm-1s",
@@ -211,6 +210,28 @@ SROS_VARIANTS = {
         "power": {"modules": {"ac/hv": 3, "dc": 4}},
         "connector": { "type": "c1-100g", "xiom": True }, # TODO derive XIOM flag from timos_line
     },
+
+    # To show 800G 
+    "sr-1-24d": {
+        "deployment_model": "distributed",
+        "max_nics": 24,
+        "power": {"modules": {"ac/hv": 3, "dc": 4}},
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "slot=A chassis=sr-1 card=cpm-1x",
+        },
+        "lcs": [
+         {
+            "min_ram": 4,
+            **line_card_config(
+                chassis="sr-1",
+                card="cpm-1x",
+                card_type="i24-800g-qsfpdd-1",
+                mda="m24-800g-qsfpdd-1",
+            ),
+         }],
+    },
+
     "sr-2s": {
         "deployment_model": "distributed",
         "max_nics": 10,  # 8+2
@@ -324,7 +345,6 @@ SROS_VARIANTS = {
         "deployment_model": "integrated",
         "min_ram": 5,  # minimum RAM requirements
         "max_nics": 12,
-        "timos_line": "chassis=sr-1 slot=A card=cpm-1 slot=1 mda/1=me12-100gb-qsfp28",
         **line_card_config(
             chassis="sr-1",
             card="cpm-1",
@@ -345,7 +365,6 @@ SROS_VARIANTS = {
         "lcs": [
             {
                 "min_ram": 4,
-                "timos_line": "chassis=sr-1e slot=1 card=iom-e mda/1=me40-1gb-csfp",
                 **line_card_config(chassis="sr-1e", card="iom-e", mda="me40-1gb-csfp"),
             }
         ],
