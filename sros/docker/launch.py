@@ -211,20 +211,21 @@ SROS_VARIANTS = {
         "connector": { "type": "c1-100g", "xiom": True }, # TODO derive XIOM flag from timos_line
     },
 
-    # To show 800G 
+    # To show 800G, based on https://documentation.nokia.com/sr/23-3-1/pdf/vSIM_Installation_and_Setup_Guide_23.3.R1.pdf
     "sr-1-24d": {
         "deployment_model": "distributed",
         "max_nics": 24,
         "power": {"modules": {"ac/hv": 3, "dc": 4}},
+        "connector": { "type": "c1-800g" },
         "cp": {
             "min_ram": 4,
-            "timos_line": "slot=A chassis=sr-1 card=cpm-1x",
+            "timos_line": "slot=A chassis=SR-1-24D card=cpm-1x",
         },
         "lcs": [
          {
             "min_ram": 4,
             **line_card_config(
-                chassis="sr-1",
+                chassis="SR-1-24D",
                 card="cpm-1x",
                 card_type="i24-800g-qsfpdd-1",
                 mda="m24-800g-qsfpdd-1",
