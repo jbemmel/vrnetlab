@@ -81,7 +81,6 @@ SROS_VARIANTS = {
         "deployment_model": "distributed",
         # control plane (CPM)
         "max_nics": 34,  # 24*10 + 8*25G + 2*100G (with connector)
-        "connector": {"type": "c1-100g", "ports": [33, 34]},
         "cp": {
             "min_ram": 3,
             "timos_line": "slot=A chassis=ixr-e card=cpm-ixr-e",
@@ -156,7 +155,7 @@ SROS_VARIANTS = {
     "ixr-e-small": {
         "deployment_model": "distributed",
         # control plane (CPM)
-        "max_nics": 18, # Note: vSIM supports max 8 NICs, up to 1/1/6
+        "max_nics": 18,
         "cp": {
             "min_ram": 3,
             "timos_line": "slot=A chassis=ixr-e card=imm14-10g-sfp++4-1g-tx",
@@ -187,6 +186,7 @@ SROS_VARIANTS = {
         "deployment_model": "integrated",
         "min_ram": 6,  # minimum RAM requirements
         "max_nics": 36,
+        "timos_line": "chassis=sr-1s slot=A card=xcm-1s mda/1=s36-100gb-qsfp28",
         **line_card_config(
             chassis="sr-1s",
             card="cpm-1s",
@@ -195,7 +195,6 @@ SROS_VARIANTS = {
             integrated=True,
         ),
         "power": {"modules": {"ac/hv": 3, "dc": 4}},
-        "connector": {"type": "c1-100g"},
     },
     "sr-1s-macsec": {
         "deployment_model": "integrated",
@@ -208,37 +207,11 @@ SROS_VARIANTS = {
         /configure card 1 xiom x1 mda 1 mda-type ms16-100gb-sfpdd+4-100gb-qsfp28
          """,
         "power": {"modules": {"ac/hv": 3, "dc": 4}},
-        "connector": { "type": "c1-100g", "xiom": True }, # TODO derive XIOM flag from timos_line
     },
-
-    # To show 800G, based on https://documentation.nokia.com/sr/23-3-1/pdf/vSIM_Installation_and_Setup_Guide_23.3.R1.pdf
-    # Requires vSIM 23.3.R1
-    "sr-1-24d": {
-        "deployment_model": "distributed",
-        "max_nics": 24,
-        "power": {"modules": {"ac/hv": 3, "dc": 4}},
-        "connector": { "type": "c1-800g" },
-        "cp": {
-            "min_ram": 4,
-            "timos_line": "slot=A chassis=SR-1-24D card=cpm-1x",
-        },
-        "lcs": [
-         {
-            "min_ram": 4,
-            **line_card_config(
-                chassis="SR-1-24D",
-                card="cpm-1x",
-                card_type="i24-800g-qsfpdd-1",
-                mda="m24-800g-qsfpdd-1",
-            ),
-         }],
-    },
-
     "sr-2s": {
         "deployment_model": "distributed",
         "max_nics": 10,  # 8+2
         "power": {"modules": {"ac/hv": 3, "dc": 4}},
-        "connector": {"type": "c1-100g", "xiom": True},
         "cp": {
             "min_ram": 3,
             # The 7750 SR-2s uses an integrated switch fabric module (SFM) design
@@ -263,7 +236,6 @@ SROS_VARIANTS = {
         # control plane (CPM)
         "max_nics": 36,
         "power": {"modules": 10, "shelves": 2},
-        "connector": {"type": "c1-100g"},
         "cp": {
             "min_ram": 4,
             "timos_line": "slot=A chassis=SR-7s sfm=sfm2-s card=cpm2-s",
@@ -318,7 +290,6 @@ SROS_VARIANTS = {
         # control plane (CPM)
         "max_nics": 36,
         "power": {"modules": 10, "shelves": 2},
-        "connector": {"type": "c1-100g"},
         "cp": {
             "min_ram": 4,
             "timos_line": "slot=A chassis=SR-14s sfm=sfm-s card=cpm2-s",
@@ -347,6 +318,7 @@ SROS_VARIANTS = {
         "deployment_model": "integrated",
         "min_ram": 5,  # minimum RAM requirements
         "max_nics": 12,
+        "timos_line": "chassis=sr-1 slot=A card=cpm-1 slot=1 mda/1=me12-100gb-qsfp28",
         **line_card_config(
             chassis="sr-1",
             card="cpm-1",
@@ -354,7 +326,6 @@ SROS_VARIANTS = {
             mda="me12-100gb-qsfp28",
             integrated=True,
         ),
-        "connector": {"type": "c1-100g"},
     },
     "sr-1e": {
         "deployment_model": "distributed",
@@ -368,6 +339,7 @@ SROS_VARIANTS = {
         "lcs": [
             {
                 "min_ram": 4,
+                "timos_line": "chassis=sr-1e slot=1 card=iom-e mda/1=me40-1gb-csfp",
                 **line_card_config(chassis="sr-1e", card="iom-e", mda="me40-1gb-csfp"),
             }
         ],
@@ -415,7 +387,6 @@ SROS_VARIANTS = {
             "timos_line": "slot=A chassis=sr-1x-48D card=cpm-1x",
         },
         # line card (IOM/XCM)
-        "connector": {"type": "c1-800g"},
         "lcs": [
             {
                 "min_ram": 4,
@@ -648,7 +619,7 @@ def gen_bof_config():
 
 
 class SROS_vm(vrnetlab.VM):
-    def __init__(self, username, password, ram, conn_mode, cpu=2, num=0, port_count=0):
+    def __init__(self, username, password, ram, conn_mode, cpu=2, num=0):
         super().__init__(username, password, disk_image="/sros.qcow2", num=num, ram=ram)
         self.nic_type = "virtio-net-pci"
         self.conn_mode = conn_mode
@@ -659,19 +630,12 @@ class SROS_vm(vrnetlab.VM):
             cpu = 2
         self.cpu = cpu
         self.qemu_args.extend(["-cpu", "host", "-smp", f"{cpu}"])
-        self.port_count = port_count  # Number of connected ports
+
+        # override default wait patter with hash followed by the space
+        self.wait_pattern = "# "
 
     def bootstrap_spin(self):
         """This function should be called periodically to do work."""
-
-        if self.spins > 60:
-            # too many spins with no result, probably means SROS hasn't started
-            # successfully, so we restart it
-            self.logger.warning("no output from serial console, restarting VM")
-            self.stop()
-            self.start()
-            self.spins = 0
-            return
 
         (ridx, match, res) = self.tn.expect([b"Login:", b"^[^ ]+#"], 1)
         if match:  # got a match!
@@ -699,34 +663,6 @@ class SROS_vm(vrnetlab.VM):
         self.spins += 1
 
         return
-
-    def configure_ports(self):
-        """
-        Enable all connected ports, provision connectors & enable LLDP
-        """
-        ENABLE = "no shutdown" if SROS_VERSION.major <= 22 else "admin-state enable"
-
-        for p in range(1, self.port_count + 1):
-            portname = f"port 1/1/{p}"
-            # Some mda's use 1/1/c for breakout, on some ports
-            # XIOM: 1/x1/1/c[n]/1
-            if "connector" in self.variant:
-                conn = self.variant["connector"]
-                if "ports" not in conn or p in conn["ports"]:
-                    portname = f"port 1/{'x1/' if 'xiom' in conn else ''}1/c{p}"
-                    self.wait_write(
-                        f"/configure {portname} connector breakout {conn['type']}"
-                    )
-                    self.wait_write(f"/configure {portname} {ENABLE}")
-                    portname += "/1"  # Using only 1:1 breakout types
-
-            self.wait_write(
-                f"/configure {portname} ethernet lldp dest-mac nearest-bridge receive true transmit true"
-            )
-            self.wait_write(
-                f"/configure {portname} ethernet lldp dest-mac nearest-bridge tx-tlvs port-desc sys-name sys-desc"
-            )
-            self.wait_write(f"/configure {portname} {ENABLE}")
 
     def read_license(self):
         """Read the license file, if it exists, and extract the UUID and start
@@ -868,9 +804,6 @@ class SROS_vm(vrnetlab.VM):
             if "power" in self.variant:
                 self.configure_power(self.variant["power"])
 
-            # Enable connected ports including LLDP rx/tx
-            self.configure_ports()
-
             self.commitConfig()
 
             # configure bof
@@ -892,7 +825,7 @@ class SROS_integrated(SROS_vm):
     """Integrated VSR-SIM"""
 
     def __init__(
-        self, hostname, username, password, mode, num_nics, variant, conn_mode, port_count
+        self, hostname, username, password, mode, num_nics, variant, conn_mode
     ):
         ram: int = vrnetlab.getMem("integrated", variant.get("min_ram"))
         cpu: int = vrnetlab.getCpu("integrated", variant.get("cpu"))
@@ -903,7 +836,6 @@ class SROS_integrated(SROS_vm):
             cpu=cpu,
             ram=ram,
             conn_mode=conn_mode,
-            port_count=port_count,
         )
         self.mode = mode
         self.role = "integrated"
@@ -933,7 +865,10 @@ class SROS_integrated(SROS_vm):
         res.append("-netdev")
         res.append("bridge,br=br-mgmt,id=br-mgmt" % {"i": 0})
 
-        if "chassis=ixr-r6" in self.variant["timos_line"] or "chassis=ixr-ec" in self.variant["timos_line"]:
+        if (
+            "chassis=ixr-r6" in self.variant["timos_line"]
+            or "chassis=ixr-ec" in self.variant["timos_line"]
+        ):
             logger.debug(
                 "detected ixr-r6/ec chassis, creating a dummy network device for SFM connection"
             )
@@ -946,7 +881,7 @@ class SROS_integrated(SROS_vm):
 class SROS_cp(SROS_vm):
     """Control plane for distributed VSR-SIM"""
 
-    def __init__(self, hostname, username, password, mode, variant, conn_mode, port_count):
+    def __init__(self, hostname, username, password, mode, variant, conn_mode):
         # cp - control plane. role is used to create a separate overlay image name
         self.role = "cp"
 
@@ -959,7 +894,6 @@ class SROS_cp(SROS_vm):
             cpu=cpu,
             ram=ram,
             conn_mode=conn_mode,
-            port_count=port_count,
         )
         self.mode = mode
         self.num_nics = 0
@@ -1053,11 +987,11 @@ class SROS_lc(SROS_vm):
     def gen_mgmt(self):
         """Generate mgmt interface"""
         res = []
-        # mgmt interface
+        # mgmt interface, dummy on line card VMs just to get correct PCI id order
         res.extend(
             ["-device", "virtio-net-pci,netdev=mgmt,mac=%s" % vrnetlab.gen_mac(0)]
         )
-        res.extend(["-netdev", "user,id=mgmt,net=10.0.0.0/24"])
+        res.extend(["-netdev", "user,id=mgmt,restrict=y"]) # dummy nic, not used
         # internal control plane interface to vFPC
         res.extend(
             ["-device", "virtio-net-pci,netdev=vfpc-int,mac=%s" % vrnetlab.gen_mac(0)]
@@ -1081,7 +1015,7 @@ class SROS_lc(SROS_vm):
 
 # SROS is main class for VSR-SIM
 class SROS(vrnetlab.VR):
-    def __init__(self, hostname, username, password, mode, variant_name, conn_mode, port_count):
+    def __init__(self, hostname, username, password, mode, variant_name, conn_mode):
         super().__init__(username, password)
 
         if variant_name.lower() in SROS_VARIANTS:
@@ -1092,7 +1026,6 @@ class SROS(vrnetlab.VR):
                     parse_variant_line(lc.get("timos_line", ""), lc)
                     for lc in variant["lcs"]
                 ]
-                variant["lcs"] = sort_lc_lines_by_slot(variant["lcs"])
         else:
             variant = parse_custom_variant(variant_name)
 
@@ -1128,7 +1061,6 @@ class SROS(vrnetlab.VR):
                     mode,
                     variant,
                     conn_mode,
-                    port_count=port_count,
                 )
             ]
 
@@ -1193,7 +1125,6 @@ class SROS(vrnetlab.VR):
                     variant["max_nics"],
                     variant,
                     conn_mode=conn_mode,
-                    port_count=port_count,
                 )
             ]
 
@@ -1236,9 +1167,12 @@ class SROS(vrnetlab.VR):
 
     def extractVersion(self):
         """extractVersion extracts the SR OS version from the qcow2 image name"""
+        # https://regex101.com/r/SPefOu/1
+        pattern = r"\S+-((\d{1,3})\.(\d{1,2})\.\w(\d{1,2}))\.qcow2"
+        match_found = False
+
         for e in os.listdir("/"):
-            # https://regex101.com/r/SPefOu/1
-            match = re.match(r"\S+-((\d{1,3})\.(\d{1,2})\.\w(\d{1,2}))\.qcow2", e)
+            match = re.match(pattern, e)
             if match:
                 # save original qcow2 image name
                 self.qcow_name = e
@@ -1248,9 +1182,12 @@ class SROS(vrnetlab.VR):
                 SROS_VERSION.minor = int(match.group(3))
                 SROS_VERSION.patch = int(match.group(4))
                 self.logger.info(f"Parsed SR OS version: {SROS_VERSION}")
-                return
 
-        self.logger.error("Could not extract version from qcow2 image name")
+                match_found = True
+                break
+
+        if not match_found:
+            self.logger.error("Could not extract version from qcow2 image name")
 
     def processFiles(self):
         """processFiles renames the qcow2 image to sros.qcow2 and the license file to license.txt
@@ -1320,6 +1257,7 @@ if __name__ == "__main__":
             "-s",
             "-c",
             "-v",
+            "-p",
             "/tftpboot",
         ]
     )
@@ -1374,6 +1312,5 @@ if __name__ == "__main__":
         mode=args.mode,
         variant_name=args.variant,
         conn_mode=args.connection_mode,
-        port_count=int(os.environ["CLAB_INTFS"]) if "CLAB_INTFS" in os.environ else 0,
     )
     ia.start(add_fwd_rules=False)
