@@ -677,6 +677,7 @@ class SROS_vm(vrnetlab.VM):
         """
         Enable all connected ports, provision connectors & enable LLDP
         """
+        ENABLE = "admin-state enable" if SROS_VERSION.major > 22 else "no shutdown"
         for p in range(1, self.port_count + 1):
             portname = f"port 1/1/{p}"
             # Some mda's use 1/1/c for breakout, on some ports
@@ -688,16 +689,17 @@ class SROS_vm(vrnetlab.VM):
                     self.wait_write(
                         f"/configure {portname} connector breakout {conn['type']}"
                     )
-                    self.wait_write(f"/configure {portname} admin-state enable")
+                    self.wait_write(f"/configure {portname} {ENABLE}")
                     portname += "/1"  # Using only 1:1 breakout types
 
             self.wait_write(
-                f"/configure {portname} ethernet lldp dest-mac nearest-bridge receive true transmit true"
+                f"/configure {portname} ethernet lldp dest-mac nearest-bridge receive true transmit true" if SROS_VERSION.major > 22 else
+                f"/configure {portname} ethernet lldp dest-mac nearest-bridge admin-status tx-rx"
             )
             #self.wait_write(
             #    f"/configure {portname} ethernet lldp dest-mac nearest-bridge tx-tlvs port-desc sys-name sys-desc"
             #)
-            self.wait_write(f"/configure {portname} admin-state enable")
+            self.wait_write(f"/configure {portname} {ENABLE}")
 
     def read_license(self):
         """Read the license file, if it exists, and extract the UUID and start
