@@ -688,16 +688,16 @@ class SROS_vm(vrnetlab.VM):
                     self.wait_write(
                         f"/configure {portname} connector breakout {conn['type']}"
                     )
-                    self.wait_write(f"/configure {portname} no shutdown")
+                    self.wait_write(f"/configure {portname} admin-state enable")
                     portname += "/1"  # Using only 1:1 breakout types
 
             self.wait_write(
-                f"/configure {portname} ethernet lldp dest-mac nearest-bridge admin-status tx-rx"
+                f"/configure {portname} ethernet lldp dest-mac nearest-bridge receive true transmit true"
             )
-            self.wait_write(
-                f"/configure {portname} ethernet lldp dest-mac nearest-bridge tx-tlvs port-desc sys-name sys-desc"
-            )
-            self.wait_write(f"/configure {portname} no shutdown")
+            #self.wait_write(
+            #    f"/configure {portname} ethernet lldp dest-mac nearest-bridge tx-tlvs port-desc sys-name sys-desc"
+            #)
+            self.wait_write(f"/configure {portname} admin-state enable")
 
     def read_license(self):
         """Read the license file, if it exists, and extract the UUID and start
