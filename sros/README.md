@@ -37,6 +37,7 @@ By selecting a certain variant (referred by its `name`) the VSIM will start with
 |    sr-a4     | distributed |         cpm-a          |     maxp10-10/1gb-msec-sfp+      |   4+4    |    10    |
 | ixr-e-small  | distributed | imm14-10g-sfp++4-1g-tx |       m14-10g-sfp++4-1g-tx       |   3+4    |    18    |
 |  ixr-e-big   | distributed |       cpm-ixr-e        |    m24-sfp++8-sfp28+2-qsfp28     |   3+4    |    34    |
+|    ixr-e2    | integrated  |       cpm-ixr-e2        |  m2-qsfpdd+2-qsfp28+24-sfp28   |    4     |    34    |
 |    ixr-ec    | integrated  |       cpm-ixr-e        |  m4-1g-tx+20-1g-sfp+6-10g-sfp+   |    4     |    34    |
 |    ixr-r6    | integrated  |      cpiom-ixr-r6      |    m6-10g-sfp++1-100g-qsfp28     |    6     |    10    |
 |    ixr-s     | integrated  |       cpm-ixr-s        |        m48-sfp++6-qsfp28         |   3+4    |    54    |
@@ -68,3 +69,17 @@ Custom variants WILL NOT have cards/mda auto-configured, user needs to configure
 ## Usage with containerlab
 
 Refer to containerlab documentation piece on [vrnetlab integration](https://containerlab.srlinux.dev/manual/vrnetlab/) and vr-sros.
+
+## Extracting qcow2 from container image
+
+It is possible to extract the original qcow2 disk image from an existing container image. This might be useful when you want to rebuild the container image with a different vrnetlab codebase.
+
+The following script takes an image name and the qcow2 image name to copy out from the container image:
+
+```bash
+IMAGE=registry.srlinux.dev/pub/vr-sros:23.7.R1
+VERSION=$(cut -d ':' -f 2 <<< $IMAGE)
+docker create --name sros-copy $IMAGE
+docker cp sros-copy:sros-vm-$VERSION.qcow2 .
+docker rm sros-copy
+```
