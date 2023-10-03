@@ -711,7 +711,7 @@ class SROS_vm(vrnetlab.VM):
                     self.wait_write(f"/configure {portname} {ENABLE}")
                     portname += "/1"  # Using only 1:1 breakout types
 
-            RX_TX = "receive true transmit true" if SROS_VERSION.major > 22 else "admin-status tx-rx"
+            RX_TX = "receive true transmit true tx-tlvs sys-name port-desc sys-desc" if SROS_VERSION.major > 22 else "admin-status tx-rx"
             self.wait_write( 
                 f"/configure {portname} ethernet lldp dest-mac nearest-bridge {RX_TX}"
             )
