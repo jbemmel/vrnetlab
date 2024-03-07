@@ -661,7 +661,7 @@ def gen_bof_config():
 
 
 class SROS_vm(vrnetlab.VM):
-    def __init__(self, username, password, ram, conn_mode, cpu=2, num=0):
+    def __init__(self, username, password, ram, conn_mode, cpu=2, num=0, port_count=0):
         super().__init__(
             username,
             password,
@@ -672,6 +672,7 @@ class SROS_vm(vrnetlab.VM):
         )
         self.nic_type = "virtio-net-pci"
         self.conn_mode = conn_mode
+        self.port_count = port_count  # Number of connected ports
         self.uuid = "00000000-0000-0000-0000-000000000000"
         self.power = "dc"  # vSR emulates DC only
         self.read_license()
@@ -942,6 +943,7 @@ class SROS_integrated(SROS_vm):
             cpu=cpu,
             ram=ram,
             conn_mode=conn_mode,
+            port_count=port_count,
         )
         self.mode = mode
         self.role = "integrated"
@@ -955,7 +957,6 @@ class SROS_integrated(SROS_vm):
         self.logger.info("Acting timos line: {}".format(self.smbios))
         self.variant = variant
         self.hostname = hostname
-        self.port_count = port_count  # Number of connected ports
 
         for cf in ["cf1", "cf2"]:
             size: str = variant.get(cf)
