@@ -152,6 +152,66 @@ SROS_VARIANTS = {
             }
         ],
     },
+    "ixr-x1": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 36, # 32 * qsfp28 + 4 * qsfpdd
+        "cp": {
+            "min_ram": 3,
+            "timos_line": "chassis=ixr-x slot=A card=cpm-ixr-x/imm32-qsfp28+4-qsfpdd",
+        },
+        # line card (IOM/XCM)
+        "lcs": [
+            {
+                "min_ram": 4,
+                **line_card_config(
+                    chassis="ixr-x",
+                    card="imm32-qsfp28+4-qsfpdd",
+                    mda="m32-qsfp28+4-qsfpdd",
+                ),
+            }
+        ],
+    },
+    "ixr-xs": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 54, # 6 * qsfpdd + 48 * sfp56
+        "cp": {
+            "min_ram": 3,
+            "timos_line": "chassis=ixr-x slot=A card=cpm-ixr-x/imm6-qsfpdd+48-sfp56",
+        },
+        # line card (IOM/XCM)
+        "lcs": [
+            {
+                "min_ram": 4,
+                **line_card_config(
+                    chassis="ixr-x",
+                    card="imm6-qsfpdd+48-sfp56",
+                    mda="m6-qsfpdd+48-sfp56",
+                ),
+            }
+        ],
+    },
+    "ixr-x3": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 36, # 36 * qsfpdd
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "chassis=ixr-x3 slot=A card=cpm-ixr-x/imm36-qsfpdd",
+        },
+        # line card (IOM/XCM)
+        "lcs": [
+            {
+                "min_ram": 5,
+                **line_card_config(
+                    chassis="ixr-x3",
+                    card="imm36-qsfpdd",
+                    mda="m36-qsfpdd",
+                ),
+            }
+        ],
+    },
     "ixr-e-small": {
         "deployment_model": "distributed",
         # control plane (CPM)
@@ -255,6 +315,28 @@ SROS_VARIANTS = {
 /configure card 1 card-type xcm-2s
 /configure card 1 xiom x1 xiom-type iom-s-3.0t level cr1600g+
 /configure card 1 xiom x1 mda 1 mda-type ms8-100gb-sfpdd+2-100gb-qsfp28
+""",
+            },
+        ],
+    },
+    "sr-2se": {
+        "deployment_model": "distributed",
+        "max_nics": 36,
+        "power": {"modules": {"ac/hv": 3, "dc": 4}},
+        "cp": {
+            "min_ram": 4,
+            # The 7750 SR-2se uses an integrated switch fabric module (SFM) design
+            "timos_line": "slot=A chassis=sr-2se sfm=sfm-2se card=cpm-2se",
+        },
+        "lcs": [
+            {
+                "min_ram": 8,
+                "timos_line": "slot=1 chassis=sr-2se sfm=sfm-2se card=xcm-2se mda/1=x2-s36-800g-qsfpdd-18.0t",
+                "card_config": """
+/configure sfm 1 sfm-type sfm-2se
+/configure sfm 2 sfm-type sfm-2se
+/configure card 1 card-type xcm-2se
+/configure card 1 mda 1 mda-type x2-s36-800g-qsfpdd-18.0t
 """,
             },
         ],
@@ -980,7 +1062,12 @@ class SROS_integrated(SROS_vm):
 
         if any(
             chassis in self.variant["timos_line"]
-            for chassis in ["chassis=ixr-r6", "chassis=ixr-ec", "chassis=ixr-e2", "chassis=ixr-e2c"]
+            for chassis in [
+                "chassis=ixr-r6",
+                "chassis=ixr-ec",
+                "chassis=ixr-e2",
+                "chassis=ixr-e2c",
+            ]
         ):
             logger.debug(
                 "detected ixr-r6/ixr-ec/ixr-e2/ixr-e2c chassis, creating a dummy network device for SFM connection"
