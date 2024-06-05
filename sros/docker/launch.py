@@ -152,6 +152,26 @@ SROS_VARIANTS = {
             }
         ],
     },
+    "ixr-x": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 36,
+        "cp": {
+            "min_ram": 3,
+            "timos_line": "slot=A chassis=ixr-x card=cpm-ixr-x/imm32-qsfp28+4-qsfpdd",
+        },
+        # line card (IOM/XCM)
+        "lcs": [
+            {
+                "min_ram": 4,
+                "timos_line": "slot=1 chassis=ixr-x card=cpm-ixr-x/imm32-qsfp28+4-qsfpdd mda/1=m32-qsfp28+4-qsfpdd",
+                "card_config": """/configure card 1 card-type imm32-qsfp28+4-qsfpdd
+            /configure card 1 mda 1 mda-type m32-qsfp28+4-qsfpdd
+            """,
+            }
+        ],
+        "connector": {"type": "c1-100g"},
+    },
     "ixr-e-small": {
         "deployment_model": "distributed",
         # control plane (CPM)
@@ -255,6 +275,30 @@ SROS_VARIANTS = {
 /configure card 1 card-type xcm-2s
 /configure card 1 xiom x1 xiom-type iom-s-3.0t level cr1600g+
 /configure card 1 xiom x1 mda 1 mda-type ms8-100gb-sfpdd+2-100gb-qsfp28
+""",
+            },
+        ],
+    },
+    "sr-2se": {
+        "deployment_model": "distributed",
+        "max_nics": 36,
+        "power": {"modules": {"ac/hv": 3, "dc": 4}},
+        "cp": {
+            "min_ram": 4,
+            # The 7750 SR-2se uses an integrated switch fabric module (SFM) design
+            "timos_line": "slot=A chassis=sr-2se sfm=sfm-2se card=cpm-2se",
+        },
+        # line card (IOM/XCM), 1/x1/1/c[n]/1
+        "connector": {"type": "c1-800g"},
+        "lcs": [
+            {
+                "min_ram": 8,
+                "timos_line": "slot=1 chassis=sr-2se sfm=sfm-2se card=xcm-2se mda/1=x2-s36-800g-qsfpdd-18.0t",
+                "card_config": """
+/configure sfm 1 sfm-type sfm-2se
+/configure sfm 2 sfm-type sfm-2se
+/configure card 1 card-type xcm-2se
+/configure card 1 mda 1 mda-type x2-s36-800g-qsfpdd-18.0t
 """,
             },
         ],
@@ -979,11 +1023,11 @@ class SROS_integrated(SROS_vm):
         res.append("bridge,br=br-mgmt,id=br-mgmt" % {"i": 0})
 
         if any(
-            chassis in self.variant["timos_line"]
-            for chassis in ["chassis=ixr-r6", "chassis=ixr-ec", "chassis=ixr-e2", "chassis=ixr-e2c"]
+            ("chassis="+chassis) in self.variant["timos_line"]
+            for chassis in ["ixr-r6", "ixr-ec", "ixr-e2", "ixr-e2c", "ixr-x"]
         ):
             logger.debug(
-                "detected ixr-r6/ixr-ec/ixr-e2/ixr-e2c chassis, creating a dummy network device for SFM connection"
+                "detected ixr-r6/ixr-ec/ixr-e2/ixr-e2c/ixr-x chassis, creating a dummy network device for SFM connection"
             )
             res.append(f"-device virtio-net-pci,netdev=dummy,mac={vrnetlab.gen_mac(0)}")
             res.append("-netdev tap,ifname=sfm-dummy,id=dummy,script=no,downscript=no")
