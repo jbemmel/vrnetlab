@@ -38,12 +38,12 @@ def trace(self, message, *args, **kws):
 logging.Logger.trace = trace
 
 
-class VJUNOSSWITCH_vm(vrnetlab.VM):
+class VJUNOSROUTER_vm(vrnetlab.VM):
     def __init__(self, hostname, username, password, conn_mode):
         for e in os.listdir("/"):
             if re.search(".qcow2$", e):
                 disk_image = "/" + e
-        super(VJUNOSSWITCH_vm, self).__init__(
+        super(VJUNOSROUTER_vm, self).__init__(
             username, password, disk_image=disk_image, ram=5120
         )
         # device hostname
@@ -88,7 +88,7 @@ class VJUNOSSWITCH_vm(vrnetlab.VM):
         )
         self.nic_type = "virtio-net-pci"
         self.num_nics = 11
-        self.smbios = ["type=1,product=VM-VEX"]
+        self.smbios = ["type=1,product=VM-VMX,family=lab"]
         self.qemu_args.extend(["-machine", "pc,usb=off,dump-guest-core=off,accel=kvm"])
         self.qemu_args.extend(
             ["-device", "piix3-usb-uhci,id=usb,bus=pci.0,addr=0x1.0x2"]
@@ -159,10 +159,10 @@ class VJUNOSSWITCH_vm(vrnetlab.VM):
         return
 
 
-class VJUNOSSWITCH(vrnetlab.VR):
+class VJUNOSROUTER(vrnetlab.VR):
     def __init__(self, hostname, username, password, conn_mode):
-        super(VJUNOSSWITCH, self).__init__(username, password)
-        self.vms = [VJUNOSSWITCH_vm(hostname, username, password, conn_mode)]
+        super(VJUNOSROUTER, self).__init__(username, password)
+        self.vms = [VJUNOSROUTER_vm(hostname, username, password, conn_mode)]
 
 
 if __name__ == "__main__":
@@ -173,7 +173,7 @@ if __name__ == "__main__":
         "--trace", action="store_true", help="enable trace level logging"
     )
     parser.add_argument(
-        "--hostname", default="vr-vjunosswitch", help="vJunos-switch hostname"
+        "--hostname", default="vr-VJUNOSROUTER", help="vJunos-router hostname"
     )
     parser.add_argument("--username", default="vrnetlab", help="Username")
     parser.add_argument("--password", default="VR-netlab9", help="Password")
@@ -190,7 +190,7 @@ if __name__ == "__main__":
     if args.trace:
         logger.setLevel(1)
 
-    vr = VJUNOSSWITCH(
+    vr = VJUNOSROUTER(
         args.hostname,
         args.username,
         args.password,

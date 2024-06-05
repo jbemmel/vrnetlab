@@ -160,17 +160,54 @@ SROS_VARIANTS = {
             "min_ram": 3,
             "timos_line": "slot=A chassis=ixr-x card=cpm-ixr-x/imm32-qsfp28+4-qsfpdd",
         },
+        "connector": {"type": "c1-100g"},
+
+        # line card (IOM/XCM)
+        **line_card_config(
+            chassis="ixr-x",
+            card="imm32-qsfp28+4-qsfpdd",
+            mda="m32-qsfp28+4-qsfpdd",
+        ),
+    },
+    "ixr-xs": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 54,  # 6 * qsfpdd + 48 * sfp56
+        "cp": {
+            "min_ram": 3,
+            "timos_line": "chassis=ixr-x slot=A card=cpm-ixr-x/imm6-qsfpdd+48-sfp56",
+        },
         # line card (IOM/XCM)
         "lcs": [
             {
                 "min_ram": 4,
-                "timos_line": "slot=1 chassis=ixr-x card=cpm-ixr-x/imm32-qsfp28+4-qsfpdd mda/1=m32-qsfp28+4-qsfpdd",
-                "card_config": """/configure card 1 card-type imm32-qsfp28+4-qsfpdd
-            /configure card 1 mda 1 mda-type m32-qsfp28+4-qsfpdd
-            """,
+                **line_card_config(
+                    chassis="ixr-x",
+                    card="imm6-qsfpdd+48-sfp56",
+                    mda="m6-qsfpdd+48-sfp56",
+                ),
             }
         ],
-        "connector": {"type": "c1-100g"},
+    },
+    "ixr-x3": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 36,  # 36 * qsfpdd
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "chassis=ixr-x3 slot=A card=cpm-ixr-x/imm36-qsfpdd",
+        },
+        # line card (IOM/XCM)
+        "lcs": [
+            {
+                "min_ram": 5,
+                **line_card_config(
+                    chassis="ixr-x3",
+                    card="imm36-qsfpdd",
+                    mda="m36-qsfpdd",
+                ),
+            }
+        ],
     },
     "ixr-e-small": {
         "deployment_model": "distributed",
@@ -455,20 +492,127 @@ SROS_VARIANTS = {
             },
         ],
     },
-    "sr-1x-48d": {
+    ### SR-1 FP5 models (six variants with sfp-dd or qsfpdd only):
+    # SR-1 FP5 - CP Card must include CPM/IOM
+    "sr-1-46s": {
         "deployment_model": "distributed",
         # control plane (CPM)
         "max_nics": 48,
         "cp": {
             "min_ram": 4,
-            "timos_line": "slot=A chassis=sr-1x-48D card=cpm-1x",
+            "timos_line": "slot=A chassis=sr-1-46s card=cpm-1x/i40-200g-sfpdd+6-800g-qsfpdd-1",  # CP Card must include CPM/IOM
         },
         # line card (IOM/XCM)
         "lcs": [
             {
                 "min_ram": 4,
                 **line_card_config(
-                    chassis="sr-1x-48D",
+                    chassis="sr-1-46s",
+                    card="i40-200g-sfpdd+6-800g-qsfpdd-1",
+                    mda="m40-200g-sfpdd+6-800g-qsfpdd-1",
+                ),
+            }
+        ],
+    },
+    # SR-1 FP5 - CP Card must include CPM/IOM
+    "sr-1-92s": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 48,
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "slot=A chassis=sr-1-92s card=cpm-1x/i80-200g-sfpdd+12-400g-qsfpdd-1",  # CP Card must include CPM/IOM
+        },
+        # line card (IOM/XCM)
+        "lcs": [
+            {
+                "min_ram": 4,
+                **line_card_config(
+                    chassis="sr-1-92s",
+                    card="i80-200g-sfpdd+12-400g-qsfpdd-1",
+                    mda="m80-200g-sfpdd+12-400g-qsfpdd-1",
+                ),
+            }
+        ],
+    },
+    # SR-1 FP5 - CP Card must include CPM/IOM
+    "sr-1x-92s": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 48,
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "slot=A chassis=sr-1x-92s card=cpm-1x/i80-200g-sfpdd+12-800g-qsfpdd-1x",  # CP Card must include CPM/IOM
+        },
+        # line card (IOM/XCM)
+        "lcs": [
+            {
+                "min_ram": 4,
+                **line_card_config(
+                    chassis="sr-1x-92s",
+                    card="i80-200g-sfpdd+12-800g-qsfpdd-1x",
+                    mda="m80-200g-sfpdd+12-800g-qsfpdd-1x",
+                ),
+            }
+        ],
+    },
+    # SR-1 FP5
+    "sr-1-24d": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 48,
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "slot=A chassis=sr-1-24d card=cpm-1x",
+        },
+        # line card (IOM/XCM)
+        "lcs": [
+            {
+                "min_ram": 4,
+                **line_card_config(
+                    chassis="sr-1-24d",
+                    card="i24-800g-qsfpdd-1",
+                    mda="m24-800g-qsfpdd-1",
+                ),
+            }
+        ],
+    },
+    # SR-1 FP5
+    "sr-1-48d": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 48,
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "slot=A chassis=sr-1-48D card=cpm-1x/i48-400g-qsfpdd-1",  # CP Card must include CPM/IOM
+        },
+        # line card (IOM/XCM)
+        "lcs": [
+            {
+                "min_ram": 4,
+                **line_card_config(
+                    chassis="sr-1-48D",
+                    card="i48-400g-qsfpdd-1",
+                    mda="m48-400g-qsfpdd-1",
+                ),
+            }
+        ],
+    },
+    # SR-1 FP5
+    "sr-1x-48d": {
+        "deployment_model": "distributed",
+        # control plane (CPM)
+        "max_nics": 48,
+        "cp": {
+            "min_ram": 4,
+            "timos_line": "slot=A chassis=sr-1x-48d card=cpm-1x",
+        },
+        # line card (IOM/XCM)
+        "lcs": [
+            {
+                "min_ram": 4,
+                **line_card_config(
+                    chassis="sr-1x-48d",
                     card="i48-800g-qsfpdd-1x",
                     mda="m48-800g-qsfpdd-1x",
                 ),
@@ -494,19 +638,16 @@ SROS_VARIANTS = {
 # SR OS Classic CLI common configuration
 SROS_CL_COMMON_CFG = """
 /configure system name {name}
-/configure system netconf no shutdown
 /configure system security profile \"administrative\" netconf base-op-authorization lock
 /configure system login-control ssh inbound-max-sessions 30
-/configure system management-interface yang-modules no nokia-modules
-/configure system management-interface yang-modules nokia-combined-modules
 /configure system management-interface yang-modules no base-r13-modules
+/configure system netconf auto-config-save
+/configure system netconf no shutdown
 /configure system grpc allow-unsecure-connection
 /configure system grpc gnmi auto-config-save
 /configure system grpc gnmi no shutdown
 /configure system grpc rib-api no shutdown
 /configure system grpc no shutdown
-/configure system netconf auto-config-save
-/configure system netconf no shutdown
 /configure system security profile "administrative" netconf base-op-authorization kill-session
 /configure system security profile "administrative" netconf base-op-authorization lock
 /configure system snmp packet-size 9216
@@ -519,6 +660,7 @@ SROS_CL_COMMON_CFG = """
 /configure system security snmp community "public" r version v2c
 """
 
+
 # SR OS Model-Driven CLI common configuration
 SROS_MD_COMMON_CFG = """
 /configure system name {name}
@@ -529,7 +671,6 @@ SROS_MD_COMMON_CFG = """
 /configure system grpc allow-unsecure-connection
 /configure system grpc gnmi auto-config-save true
 /configure system grpc rib-api admin-state enable
-/configure system management-interface netconf admin-state enable
 /configure system management-interface netconf auto-config-save true
 /configure system management-interface snmp packet-size 9216
 /configure system management-interface snmp streaming admin-state enable
@@ -540,6 +681,27 @@ SROS_MD_COMMON_CFG = """
 /configure system security snmp community "public" access-permissions r
 /configure system security snmp community "public" version v2c
 """
+
+
+# get_version_specific_config returns the version specific configuration
+# based on the release number.
+def get_version_specific_config(major_version: int):
+    # releases <=22 boot with the classic CLI config by default
+    if major_version <= 22:
+        return """
+/configure system management-interface yang-modules no nokia-submodules
+/configure system management-interface yang-modules nokia-combined-modules
+"""
+    # 23.x releases use the Model-Driven CLI by default
+    if major_version == 23:
+        return """
+/configure system management-interface netconf admin-state enable
+"""
+    # releases 24.3.1 and above use a new command to enable netconf server
+    return """
+/configure system management-interface netconf listen admin-state enable
+"""
+
 
 # to allow writing config to tftp location we needed to spin up a normal
 # tftp server in container host system. To access the host from qemu VM
@@ -1100,7 +1262,7 @@ class SROS_cp(SROS_vm):
             self.nic_type + ",netdev=br-mgmt,mac=%(mac)s" % {"mac": vrnetlab.gen_mac(0)}
         )
         res.append("-netdev")
-        res.append("bridge,br=br-mgmt,id=br-mgmt" % {"i": 0})
+        res.append("bridge,br=br-mgmt,id=br-mgmt")
 
         # add virtio NIC for internal control plane interface to vFPC
         res.append("-device")
@@ -1371,11 +1533,10 @@ def getDefaultConfig() -> str:
     """Returns the default configuration for the system based on the SR OS version.
     SR OS >=23 uses model-driven configuration, while SR OS <=22 uses classic configuration.
     """
-
     if SROS_VERSION.major <= 22:
-        return SROS_CL_COMMON_CFG
+        return SROS_CL_COMMON_CFG + get_version_specific_config(SROS_VERSION.major)
 
-    return SROS_MD_COMMON_CFG
+    return SROS_MD_COMMON_CFG + get_version_specific_config(SROS_VERSION.major)
 
 
 if __name__ == "__main__":
@@ -1419,7 +1580,7 @@ if __name__ == "__main__":
             "in.tftpd",
             "--listen",
             "--user",
-            "tftp",
+            "root",
             "-a",
             "0.0.0.0:69",
             "-s",
