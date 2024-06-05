@@ -4,24 +4,27 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -qy \
  && apt-get install -y \
+    dosfstools \
     bridge-utils \
     iproute2 \
     socat \
-    qemu-kvm \
-    tcpdump \
-    inetutils-ping \
     ssh \
+    qemu-kvm \
+    inetutils-ping \
+    dnsutils \
     telnet \
-    procps \
-    genisoimage \
  && rm -rf /var/lib/apt/lists/*
 
-ARG VERSION
-ENV VERSION=${VERSION}
 ARG IMAGE
 COPY $IMAGE* /
+
+# copy conf file
+COPY init.conf /
+# copy config shell script
+COPY make-config.sh /
+# copy python scripts for launching VM
 COPY *.py /
 
-EXPOSE 22 161/udp 830 5000 10000-10099
+EXPOSE 22 161/udp 830 5000 10000-10099 57400
 HEALTHCHECK CMD ["/healthcheck.py"]
 ENTRYPOINT ["/launch.py"]
