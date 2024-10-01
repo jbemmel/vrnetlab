@@ -198,7 +198,7 @@ OS10 login: admin
 Password:      
 ```
 
-5. After the login (username: *admin*, password: *admin*), once the system is ready and the prompt appears, you need to **stop ztd** with the command `ztd cancel`. Then, `write memory` and `reload`.
+5. After the login (username: *admin*, password: *admin* or *linuxadmin*/*linuxadmin* followed by *su admin*), once the system is ready and the prompt appears, you need to **stop ztd** with the command `ztd cancel`. Then, `write memory` and `reload`.
 6. Once the reload is completed, you can shutdown the qemu-system host as the image has been built. With 10.5.2.4, it creates an image of approximately 7G.
 7. Next is to convert from vmdk to qcow2.
 
