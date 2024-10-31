@@ -144,7 +144,7 @@ class FTOS_vm(vrnetlab.VM):
         """Do the actual bootstrap config"""
         self.logger.info("applying bootstrap configuration once system is ready")
         self.wait_write("", None)
-        self.wait_write("configure", wait="OS10#")
+        self.wait_write("configure", wait="OS10#", hold="loading-OS10#")
         self.wait_write(f"hostname {self.hostname}")
         self.wait_write("service simple-password")
         self.wait_write(
