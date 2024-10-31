@@ -111,9 +111,7 @@ class FTOS_vm(vrnetlab.VM):
                 except IndexError as exc:
                     self.logger.error("no more credentials to try")
                     return
-                self.logger.debug(
-                    "trying to log in with %s / %s", username, password)
-                )
+                self.logger.debug("trying to log in with %s / %s", username, password)
                 self.wait_write(username, wait=None)
                 self.wait_write(password, wait="Password:")
 
