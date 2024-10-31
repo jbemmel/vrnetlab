@@ -496,7 +496,7 @@ class VM:
         self.stop()
         self.start()
 
-    def wait_write(self, cmd, wait="__defaultpattern__", con=None, clean_buffer=False):
+    def wait_write(self, cmd, wait="__defaultpattern__", con=None, clean_buffer=False, hold=""):
         """Wait for something on the serial port and then send command
 
         Defaults to using self.tn as connection but this can be overridden
@@ -518,6 +518,12 @@ class VM:
             self.logger.trace(f"waiting for '{wait}' on {con_name}")
             res = con.read_until(wait.encode())
 
+            while (hold and (hold in res.decode())):
+                self.logger.trace(f"Holding pattern '{hold}' detected: {res.decode()}, retrying in 10s...")
+                con.write("\r".encode())
+                time.sleep(10)
+                res = con.read_until(wait.encode())
+            
             cleaned_buf = (
                 (con.read_very_eager()) if clean_buffer else None
             )  # Clear any remaining characters in buffer
