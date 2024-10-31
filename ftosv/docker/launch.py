@@ -163,16 +163,16 @@ class FTOS_vm(vrnetlab.VM):
         """Load additional config provided by user."""
 
         if not os.path.exists(STARTUP_CONFIG_FILE):
-            self.logger.trace(f"Startup config file {STARTUP_CONFIG_FILE} is not found")
+            self.logger.trace("Startup config file %s is not found", STARTUP_CONFIG_FILE)
             return
 
-        self.logger.trace(f"Startup config file {STARTUP_CONFIG_FILE} exists")
+        self.logger.trace("Startup config file %s exists", STARTUP_CONFIG_FILE)
         with open(STARTUP_CONFIG_FILE) as file:
             config_lines = file.readlines()
             config_lines = [line.rstrip() for line in config_lines]
-            self.logger.trace(f"Parsed startup config file {STARTUP_CONFIG_FILE}")
+            self.logger.trace("Parsed startup config file %s", STARTUP_CONFIG_FILE)
 
-        self.logger.info(f"Writing lines from {STARTUP_CONFIG_FILE}")
+        self.logger.info("Writing lines from %s", STARTUP_CONFIG_FILE)
 
         self.wait_write("configure terminal")
         # Apply lines from file
