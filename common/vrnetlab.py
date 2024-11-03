@@ -342,11 +342,11 @@ class VM:
         res.append(self.nic_type + f",netdev=p00,mac={mac}")
         res.append("-netdev")
         res.append(
-            f"user,id=p00,net={self.mgmt_subnet},host={host},dns={dns},dhcpstart={guest},"
-            f"hostfwd=tcp:0.0.0.0:22-{guest}:22,"    # ssh
-            f"hostfwd=udp:0.0.0.0:161-{guest}:161,"  # snmp
-            "".join([ f"hostfwd=tcp:0.0.0.0:{p}-{guest}:{p}," for p in self.mgmt_tcp_ports ])
-            "tftp=/tftpboot"
+            f"user,id=p00,net={self.mgmt_subnet},host={host},dns={dns},dhcpstart={guest}," +
+            f"hostfwd=tcp:0.0.0.0:22-{guest}:22," +   # ssh
+            f"hostfwd=udp:0.0.0.0:161-{guest}:161," +  # snmp
+            (",".join([ f"hostfwd=tcp:0.0.0.0:{p}-{guest}:{p}" for p in self.mgmt_tcp_ports ])) +
+            ",tftp=/tftpboot"
         )
         return res
 
@@ -552,7 +552,7 @@ class VM:
                 con.write("\r".encode())
                 time.sleep(10)
                 res = con.read_until(wait.encode())
-            
+
             cleaned_buf = (
                 (con.read_very_eager()) if clean_buffer else None
             )  # Clear any remaining characters in buffer
