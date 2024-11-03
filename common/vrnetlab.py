@@ -10,6 +10,7 @@ import re
 import subprocess
 import telnetlib
 import time
+import ipaddress
 from pathlib import Path
 
 MAX_RETRIES = 60
@@ -293,10 +294,29 @@ class VM:
             f.write(ifup_script)
         os.chmod("/etc/tc-tap-ifup", 0o777)
 
-    def gen_mgmt(self):
-        """Generate qemu args for the mgmt interface(s)"""
+    def gen_mgmt(self,subnet="10.0.0.0/24",host_ip=2,guest_ip=15,tcp_ports=[80,443,830,6030,8080,9339,32767,57400]):
+        """Generate qemu args for the mgmt interface(s)
+        
+        Default TCP ports forwarded:
+          80    - http
+          443   - https
+          830   - netconf
+          6030  - gnmi/gnoi arista
+          8080  - sonic gnmi/gnoi, other http apis
+          9339  - iana gnmi/gnoi
+          32767 - gnmi/gnoi juniper
+          57400 - nokia gnmi/gnoi
+        """
+        if host_ip+1>=guest_ip:
+            self.logger.error(f"Guest IP ({guest_ip}) must be at least 2 higher than host IP({host_ip})")
+
+        network = ipaddress.ip_network(subnet)
+        host = str(network[host_ip])
+        dns = str(network[host_ip+1])
+        guest = str(network[guest_ip])
+
         res = []
-        # mgmt interface is special - we use qemu user mode network
+        # mgmt interface is special - we use qemu user mode network with DHCP
         res.append("-device")
         mac = (
             "c0:00:01:00:ca:fe"
@@ -306,19 +326,13 @@ class VM:
         res.append(self.nic_type + f",netdev=p00,mac={mac}")
         res.append("-netdev")
         res.append(
-            "user,id=p00,net=10.0.0.0/24,"
-            "tftp=/tftpboot,"
-            "hostfwd=tcp:0.0.0.0:22-10.0.0.15:22,"  # ssh
-            "hostfwd=udp:0.0.0.0:161-10.0.0.15:161,"  # snmp
-            "hostfwd=tcp:0.0.0.0:830-10.0.0.15:830,"  # netconf
-            "hostfwd=tcp:0.0.0.0:80-10.0.0.15:80,"  # http
-            "hostfwd=tcp:0.0.0.0:443-10.0.0.15:443,"  # https
-            "hostfwd=tcp:0.0.0.0:9339-10.0.0.15:9339,"  # iana gnmi/gnoi
-            "hostfwd=tcp:0.0.0.0:57400-10.0.0.15:57400,"  # nokia gnmi/gnoi
-            "hostfwd=tcp:0.0.0.0:6030-10.0.0.15:6030,"  # gnmi/gnoi arista
-            "hostfwd=tcp:0.0.0.0:32767-10.0.0.15:32767,"  # gnmi/gnoi juniper
-            "hostfwd=tcp:0.0.0.0:8080-10.0.0.15:8080"  # sonic gnmi/gnoi, other http apis
+            f"user,id=p00,net={subnet},host={host},dns={dns},dhcpstart={guest},"
+            f"hostfwd=tcp:0.0.0.0:22-{guest}:22,"    # ssh
+            f"hostfwd=udp:0.0.0.0:161-{guest}:161,"  # snmp
         )
+        for port in tcp_ports:
+            res.append( f"hostfwd=tcp:0.0.0.0:{port}-{guest}:{port}," )
+        res.append("tftp=/tftpboot")
         return res
 
     def nic_provision_delay(self) -> None:

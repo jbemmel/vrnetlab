@@ -6,6 +6,7 @@ import os
 import re
 import signal
 import sys
+import ipaddress
 
 import vrnetlab
 
@@ -77,17 +78,23 @@ class FTOS_vm(vrnetlab.VM):
             ]
         )
 
-    def gen_mgmt(self):
+    def gen_mgmt(self,subnet="169.254.127.0/24",host_ip=2,guest_ip=15,tcp_ports=[443,830]):
         """
         Augment the parent class function to add gRPC port forwarding
+
+        TCP ports:
+        443 - OS10 REST API
+        830 - Netconf
         """
         # call parent function to generate the mgmt interface
-        res = super(FTOS_vm, self).gen_mgmt()
+        res = super(FTOS_vm, self).gen_mgmt(subnet=subnet,host_ip=host_ip,guest_ip=guest_ip,tcp_ports=tcp_ports)
 
         # append gRPC forwarding if it was not added by common lib. confirm gNMI agent port number, default port is different than 50051?
         # gRPC Network Management Interface agent requires the switch in non default SmartFabric switch-operating-mode
-        if "hostfwd=tcp::50051-10.0.0.15:50051" not in res[-1]:
-            res[-1] = res[-1] + ",hostfwd=tcp::17051-10.0.0.15:50051"
+        network = ipaddress.ip_network(subnet)
+        guest = str(network[guest_ip])
+        if f"hostfwd=tcp::50051-{guest}:50051" not in res[-1]:
+            res[-1] = res[-1] + f",hostfwd=tcp::17051-{guest}:50051"
             vrnetlab.run_command(
                 ["socat", "TCP-LISTEN:50051,fork", "TCP:127.0.0.1:17051"],
                 background=True,
@@ -149,13 +156,24 @@ class FTOS_vm(vrnetlab.VM):
             f"username {self.username} password {self.password} role sysadmin priv-lv 15"
         )
 
-        # configure mgmt interface
-        self.wait_write("interface mgmt 1/1/1")
-        self.wait_write("no ip address dhcp")
-        self.wait_write("ip address 10.0.0.15/24")
-        self.wait_write("exit")
-        self.wait_write("management route 0.0.0.0/0 10.0.0.2")
-        self.wait_write("exit")
+        # No need to reconfigure mgmt IP; causes issues with parallel Netlab provisioning
+
+        # configure mgmt interface, put it in separate vrf before it has any configs
+        # self.wait_write("interface mgmt 1/1/1")
+        # self.wait_write("no ip address")
+        # self.wait_write("no ipv6 address autoconfig")
+        # self.wait_write("exit")
+# 
+        # self.wait_write("ip vrf management")
+        # self.wait_write("interface management")
+        # self.wait_write("exit")
+
+        # self.wait_write("interface mgmt 1/1/1")
+        # self.wait_write("no ip address dhcp")
+        # self.wait_write("ip address 169.254.127.15/24")
+        # self.wait_write("exit")
+        # self.wait_write("management route 0.0.0.0/0 169.254.127.2")
+        # self.wait_write("exit")
         self.wait_write("copy running-configuration startup-configuration")
         self.wait_write("")
 
