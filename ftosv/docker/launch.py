@@ -78,21 +78,23 @@ class FTOS_vm(vrnetlab.VM):
             ]
         )
 
-    def gen_mgmt(self,subnet="169.254.127.0/24",host_ip=2,guest_ip=15,tcp_ports=[443,830]):
+    def gen_mgmt(self):
         """
         Augment the parent class function to add gRPC port forwarding
 
-        TCP ports:
+        TCP ports forwarded:
         443 - OS10 REST API
         830 - Netconf
         """
+        self.mgmt_subnet = "169.254.127.0/24"
+        self.mgmt_tcp_ports = [443,830]
         # call parent function to generate the mgmt interface
-        res = super(FTOS_vm, self).gen_mgmt(subnet=subnet,host_ip=host_ip,guest_ip=guest_ip,tcp_ports=tcp_ports)
+        res = super(FTOS_vm, self).gen_mgmt()
 
         # append gRPC forwarding if it was not added by common lib. confirm gNMI agent port number, default port is different than 50051?
         # gRPC Network Management Interface agent requires the switch in non default SmartFabric switch-operating-mode
-        network = ipaddress.ip_network(subnet)
-        guest = str(network[guest_ip])
+        network = ipaddress.ip_network(self.mgmt_subnet)
+        guest = str(network[self.mgmt_guest_ip])
         if f"hostfwd=tcp::50051-{guest}:50051" not in res[-1]:
             res[-1] = res[-1] + f",hostfwd=tcp::17051-{guest}:50051"
             vrnetlab.run_command(

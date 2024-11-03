@@ -115,6 +115,22 @@ class VM:
         if min_dp_nics:
             self.min_nics = min_dp_nics
 
+        # management subnet properties, defaults
+        self.mgmt_subnet    = "10.0.0.0/24"
+        self.mgmt_host_ip   = 2
+        self.mgmt_guest_ip  = 15
+
+        #  Default TCP ports forwarded (TODO tune per platform):
+        #  80    - http
+        #  443   - https
+        #  830   - netconf
+        #  6030  - gnmi/gnoi arista
+        #  8080  - sonic gnmi/gnoi, other http apis
+        #  9339  - iana gnmi/gnoi
+        #  32767 - gnmi/gnoi juniper
+        #  57400 - nokia gnmi/gnoi
+        self.mgmt_tcp_ports = [80,443,830,6030,8080,9339,32767,57400]
+
         # we setup pci bus by default
         self.provision_pci_bus = provision_pci_bus
         self.nics_per_pci_bus = 26  # tested to work with XRv
@@ -294,7 +310,7 @@ class VM:
             f.write(ifup_script)
         os.chmod("/etc/tc-tap-ifup", 0o777)
 
-    def gen_mgmt(self,subnet="10.0.0.0/24",host_ip=2,guest_ip=15,tcp_ports=[80,443,830,6030,8080,9339,32767,57400]):
+    def gen_mgmt(self):
         """Generate qemu args for the mgmt interface(s)
         
         Default TCP ports forwarded:
@@ -307,13 +323,13 @@ class VM:
           32767 - gnmi/gnoi juniper
           57400 - nokia gnmi/gnoi
         """
-        if host_ip+1>=guest_ip:
-            self.logger.error(f"Guest IP ({guest_ip}) must be at least 2 higher than host IP({host_ip})")
+        if self.mgmt_host_ip+1>=self.mgmt_guest_ip:
+            self.logger.error(f"Guest IP ({self.mgmt_guest_ip}) must be at least 2 higher than host IP({self.mgmt_host_ip})")
 
-        network = ipaddress.ip_network(subnet)
-        host = str(network[host_ip])
-        dns = str(network[host_ip+1])
-        guest = str(network[guest_ip])
+        network = ipaddress.ip_network(self.mgmt_subnet)
+        host = str(network[self.mgmt_host_ip])
+        dns = str(network[self.mgmt_host_ip+1])
+        guest = str(network[self.mgmt_guest_ip])
 
         res = []
         # mgmt interface is special - we use qemu user mode network with DHCP
@@ -326,13 +342,12 @@ class VM:
         res.append(self.nic_type + f",netdev=p00,mac={mac}")
         res.append("-netdev")
         res.append(
-            f"user,id=p00,net={subnet},host={host},dns={dns},dhcpstart={guest},"
+            f"user,id=p00,net={self.mgmt_subnet},host={host},dns={dns},dhcpstart={guest},"
             f"hostfwd=tcp:0.0.0.0:22-{guest}:22,"    # ssh
             f"hostfwd=udp:0.0.0.0:161-{guest}:161,"  # snmp
+            "".join([ f"hostfwd=tcp:0.0.0.0:{p}-{guest}:{p}," for p in self.mgmt_tcp_ports ])
+            "tftp=/tftpboot"
         )
-        for port in tcp_ports:
-            res.append( f"hostfwd=tcp:0.0.0.0:{port}-{guest}:{port}," )
-        res.append("tftp=/tftpboot")
         return res
 
     def nic_provision_delay(self) -> None:
