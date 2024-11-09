@@ -324,7 +324,8 @@ class VM:
           57400 - nokia gnmi/gnoi
         """
         if self.mgmt_host_ip+1>=self.mgmt_guest_ip:
-            self.logger.error(f"Guest IP ({self.mgmt_guest_ip}) must be at least 2 higher than host IP({self.mgmt_host_ip})")
+            self.logger.error("Guest IP (%s) must be at least 2 higher than host IP(%s)", 
+                              self.mgmt_guest_ip, self.mgmt_host_ip)
 
         network = ipaddress.ip_network(self.mgmt_subnet)
         host = str(network[self.mgmt_host_ip])

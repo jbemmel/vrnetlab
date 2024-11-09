@@ -159,23 +159,6 @@ class FTOS_vm(vrnetlab.VM):
         )
 
         # No need to reconfigure mgmt IP; causes issues with parallel Netlab provisioning
-
-        # configure mgmt interface, put it in separate vrf before it has any configs
-        # self.wait_write("interface mgmt 1/1/1")
-        # self.wait_write("no ip address")
-        # self.wait_write("no ipv6 address autoconfig")
-        # self.wait_write("exit")
-# 
-        # self.wait_write("ip vrf management")
-        # self.wait_write("interface management")
-        # self.wait_write("exit")
-
-        # self.wait_write("interface mgmt 1/1/1")
-        # self.wait_write("no ip address dhcp")
-        # self.wait_write("ip address 169.254.127.15/24")
-        # self.wait_write("exit")
-        # self.wait_write("management route 0.0.0.0/0 169.254.127.2")
-        # self.wait_write("exit")
         self.wait_write("copy running-configuration startup-configuration")
         self.wait_write("")
 
