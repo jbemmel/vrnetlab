@@ -9,9 +9,8 @@ import subprocess
 import sys
 import uuid
 
-from passlib.hash import sha512_crypt
-
 import vrnetlab
+from passlib.hash import sha512_crypt
 
 # loadable startup config
 STARTUP_CONFIG_FILE = "/config/startup-config.cfg"
@@ -55,6 +54,7 @@ class VJUNOSEVOLVED_vm(vrnetlab.VM):
             driveif="virtio",
             cpu="IvyBridge,vme=on,ss=on,vmx=on,f16c=on,rdrand=on,hypervisor=on,arat=on,tsc-adjust=on,umip=on,arch-capabilities=on,pdpe1gb=on,skip-l1dfl-vmentry=on,pschange-mc-no=on,bmi1=off,avx2=off,bmi2=off,erms=off,invpcid=off,rdseed=off,adx=off,smap=off,xsaveopt=off,abm=off,svm=off",
             smp="4,sockets=1,cores=4,threads=1",
+            mgmt_passthrough=False,
         )
 
         # device hostname
@@ -67,16 +67,18 @@ class VJUNOSEVOLVED_vm(vrnetlab.VM):
         with open("init.conf", "r") as file:
             cfg = file.read()
 
-        # replace HOSTNAME file var with nodes given hostname
+        cfg = cfg.replace("{MGMT_IP_IPV4}", self.mgmt_address_ipv4)
+        cfg = cfg.replace("{MGMT_GW_IPV4}", self.mgmt_gw_ipv4)
+        cfg = cfg.replace("{MGMT_IP_IPV6}", self.mgmt_address_ipv6)
+        cfg = cfg.replace("{MGMT_GW_IPV6}", self.mgmt_gw_ipv6)
+        cfg = cfg.replace("{HOSTNAME}", self.hostname)
         # replace CRYPT_PSWD file var with nodes given password
         # (Evo does not accept plaintext passwords in config)
-        new_cfg = cfg.replace("{HOSTNAME}", hostname).replace(
-            "{CRYPT_PSWD}", password_hash
-        )
+        cfg = cfg.replace("{CRYPT_PSWD}", password_hash)
 
         # write changes to init.conf file
         with open("init.conf", "w") as file:
-            file.write(new_cfg)
+            file.write(cfg)
 
         # pass in user startup config
         self.startup_config()
@@ -106,8 +108,25 @@ class VJUNOSEVOLVED_vm(vrnetlab.VM):
         self.smbios = [
             "type=0,vendor=Bochs,version=Bochs",
             "type=3,manufacturer=Bochs",
-            "type=1,manufacturer=Bochs,product=Bochs,serial=chassis_no=0:slot=0:type=1:assembly_id=0x0D20:platform=251:master=0:channelized=no",
         ]
+
+        # BT chipset
+        evo_model_smbios = "type=1,manufacturer=Bochs,product=Bochs,serial=chassis_no=0:slot=0:type=1:assembly_id=0x0D20:platform=251:master=0:channelized=no"
+        if "BX" in disk_image:
+            # BX chipset
+            evo_model_smbios = "type=1,manufacturer=Bochs,product=Bochs,serial=chassis_no=0:slot=0:type=1:assembly_id=0x0DA9:platform=272:master=0:channelized=no"
+        self.smbios.append(evo_model_smbios)
+
+        junos_version = str(re.search(r"(\d{2}\.\d{1})R\d{1}", disk_image).group(1))
+        try:
+            parsed_junos_version = float(junos_version)
+        except ValueError as e:
+             self.logger.error(f"Could not parse Junos version from filename {disk_image}! Expecting '12.3R4' style versioning to be present: {e}")
+
+        if parsed_junos_version is not None and parsed_junos_version >= 24.2:
+            # vJunosEvolved 24.2R1 and up require UEFI
+            self.qemu_args.extend(["-bios", "/usr/share/qemu/OVMF.fd"])           
+        
         self.conn_mode = conn_mode
 
     def startup_config(self):
@@ -148,7 +167,7 @@ class VJUNOSEVOLVED_vm(vrnetlab.VM):
 
                 # Login
                 self.wait_write("\r", None)
-                self.wait_write("admin", wait="login:")
+                self.wait_write("admin", wait=f"{self.hostname} login:")
                 self.wait_write(self.password, wait="Password:")
                 self.wait_write("\r", None)
                 self.logger.info("Login completed")
@@ -165,7 +184,7 @@ class VJUNOSEVOLVED_vm(vrnetlab.VM):
         # no match, if we saw some output from the router it's probably
         # booting, so let's give it some more time
         if res != b"":
-            self.logger.trace("OUTPUT: %s" % res.decode())
+            self.logger.trace("OUTPUT: %s" % res.decode('utf-8', errors="ignore"))
             # reset spins if we saw some output
             self.spins = 0
 

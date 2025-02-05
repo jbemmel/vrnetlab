@@ -109,7 +109,7 @@ NOTE: If only CF2 is provisioned, node will remap it to CF1.
 
 ## Usage with containerlab
 
-Refer to containerlab documentation piece on [vrnetlab integration](https://containerlab.srlinux.dev/manual/vrnetlab/) and vr-sros.
+Refer to containerlab documentation article on [vrnetlab integration](https://containerlab.dev/manual/vrnetlab/) and Containerlab.
 
 ## Extracting qcow2 disk image from a container image
 
@@ -118,7 +118,7 @@ It is possible to extract the original qcow2 disk image from an existing contain
 The following script takes an image name and the qcow2 image name to copy out from the container image:
 
 ```bash
-IMAGE=registry.srlinux.dev/pub/vr-sros:23.7.R1
+IMAGE=registry.srlinux.dev/pub/nokia_sros:24.10.R1
 VERSION=$(cut -d ':' -f 2 <<< $IMAGE)
 docker create --name sros-copy $IMAGE
 docker cp sros-copy:sros-vm-$VERSION.qcow2 .

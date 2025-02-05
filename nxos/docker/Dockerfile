@@ -1,20 +1,4 @@
-FROM ubuntu:20.04
-LABEL org.opencontainers.image.authors="roman@dodin.dev"
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update -qy \
-   && apt-get upgrade -qy \
-   && apt-get install -y \
-   bridge-utils \
-   iproute2 \
-   python3-ipy \
-   socat \
-   qemu-kvm \
-   tcpdump \
-   procps \
-   openvswitch-switch \
-   && rm -rf /var/lib/apt/lists/*
+FROM ghcr.io/srl-labs/vrnetlab-base:0.1.0
 
 ARG IMAGE
 COPY $IMAGE* /

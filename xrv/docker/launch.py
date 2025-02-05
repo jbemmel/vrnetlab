@@ -3,14 +3,13 @@
 import datetime
 import logging
 import os
-import random
 import re
 import signal
 import sys
-import telnetlib
 import time
 
 import vrnetlab
+from scrapli.driver.core import IOSXRDriver
 
 STARTUP_CONFIG_FILE = "/config/startup-config.cfg"
 
@@ -46,12 +45,12 @@ class XRV_vm(vrnetlab.VM):
             if re.search(".vmdk", e):
                 disk_image = "/" + e
         super(XRV_vm, self).__init__(
-            username, password, disk_image=disk_image, ram=3072
+            username, password, disk_image=disk_image, ram=3072, use_scrapli=True
         )
         self.hostname = hostname
         self.conn_mode = conn_mode
         self.num_nics = 128
-        self.credentials = [["admin", "admin"]]
+        self.credentials = []
 
         self.xr_ready = False
 
@@ -64,7 +63,7 @@ class XRV_vm(vrnetlab.VM):
             self.start()
             return
 
-        (ridx, match, res) = self.tn.expect(
+        (ridx, match, res) = self.con_expect(
             [
                 b"Press RETURN to get started",
                 b"SYSTEM CONFIGURATION COMPLETE",
@@ -72,7 +71,6 @@ class XRV_vm(vrnetlab.VM):
                 b"Username:",
                 b"^[^ ]+#",
             ],
-            1,
         )
         if match:  # got a match!
             if ridx == 0:  # press return to get started, so we press return!
@@ -92,23 +90,18 @@ class XRV_vm(vrnetlab.VM):
                 self.wait_write(self.password, wait="Enter secret again:")
                 self.credentials.insert(0, [self.username, self.password])
             if ridx == 3:  # matched login prompt, so should login
-                self.logger.debug("matched login prompt")
+                self.logger.info("matched login prompt")
                 try:
                     username, password = self.credentials.pop(0)
-                except IndexError as exc:
+                except IndexError:
                     self.logger.error("no more credentials to try")
                     return
-                self.logger.debug(
-                    "trying to log in with %s / %s" % (username, password)
-                )
+                self.logger.info("trying to log in with %s / %s" % (username, password))
                 self.wait_write(username, wait=None)
                 self.wait_write(password, wait="Password:")
-            if self.xr_ready == True and ridx == 4:
+            if self.xr_ready and ridx == 4:
                 # run main config!
-                self.bootstrap_config()
-                self.startup_config()
-                # close telnet connection
-                self.tn.close()
+                self.apply_config()
                 # startup time?
                 startup_time = datetime.datetime.now() - self.start_time
                 self.logger.info("Startup complete in: %s" % startup_time)
@@ -119,7 +112,7 @@ class XRV_vm(vrnetlab.VM):
         # no match, if we saw some output from the router it's probably
         # booting, so let's give it some more time
         if res != b"":
-            self.logger.trace("OUTPUT: %s" % res.decode())
+            self.write_to_stdout(res)
             # reset spins if we saw some output
             self.spins = 0
 
@@ -127,109 +120,91 @@ class XRV_vm(vrnetlab.VM):
 
         return
 
-    def bootstrap_config(self):
-        """Do the actual bootstrap config"""
-        self.logger.info("applying bootstrap configuration")
-        self.wait_write("", None)
-
-        self.wait_write("terminal length 0")
-
-        self.wait_write("crypto key generate rsa")
-        # check if we are prompted to overwrite current keys
-        (ridx, match, res) = self.tn.expect(
-            [
-                b"How many bits in the modulus",
-                b"Do you really want to replace them",
-                b"^[^ ]+#",
-            ],
-            10,
+    def apply_config(self):
+        scrapli_timeout = os.getenv("SCRAPLI_TIMEOUT", vrnetlab.DEFAULT_SCRAPLI_TIMEOUT)
+        self.logger.info(
+            f"Scrapli timeout is {scrapli_timeout}s (default {vrnetlab.DEFAULT_SCRAPLI_TIMEOUT}s)"
         )
-        if match:  # got a match!
-            if ridx == 0:
-                self.wait_write("2048", None)
-            elif ridx == 1:  # press return to get started, so we press return!
-                self.wait_write("no", None)
 
-        # make sure we get our prompt back
-        self.wait_write("")
+        # init scrapli
+        xrv_scrapli_dev = {
+            "host": "127.0.0.1",
+            "auth_bypass": True,
+            "auth_strict_key": False,
+            "timeout_socket": scrapli_timeout,
+            "timeout_transport": scrapli_timeout,
+            "timeout_ops": scrapli_timeout,
+        }
 
-        if self.username and self.password:
-            self.wait_write("admin")
-            self.wait_write("configure")
-            self.wait_write("username %s group root-system" % (self.username))
-            self.wait_write("username %s group cisco-support" % (self.username))
-            self.wait_write("username %s secret %s" % (self.username, self.password))
-            self.wait_write("commit")
-            self.wait_write("exit")
-            self.wait_write("exit")
+        xrv_config = f"""hostname {self.hostname}
+vrf clab-mgmt
+description Containerlab management VRF (DO NOT DELETE)
+address-family ipv4 unicast
+exit
+address-family ipv6 unicast
+root
+!
+router static
+vrf clab-mgmt
+address-family ipv4 unicast
+0.0.0.0/0 {self.mgmt_gw_ipv4}
+address-family ipv6 unicast
+::/0 {self.mgmt_gw_ipv6}
+root
+!
+interface MgmtEth 0/0/CPU0/0
+description Containerlab management interface
+vrf clab-mgmt
+ipv4 address {self.mgmt_address_ipv4}
+ipv6 address {self.mgmt_address_ipv6}
+no shut
+exit
+!
+ssh server v2
+ssh server vrf clab-mgmt
+ssh server netconf port 830
+ssh server netconf vrf clab-mgmt
+netconf agent ssh
+netconf-yang agent ssh
+!
+grpc port 57400
+grpc vrf clab-mgmt
+grpc no-tls
+!
+xml agent tty
+root
+"""
 
-        self.wait_write("show interface description")
-        self.wait_write("configure")
-        self.wait_write("hostname {}".format(self.hostname))
-        
-        # configure management vrf
-        self.wait_write("vrf clab-mgmt")
-        self.wait_write("description Containerlab management VRF (DO NOT DELETE)")
-        self.wait_write("address-family ipv4 unicast")
-        self.wait_write("exit")
-        self.wait_write("exit")
-        
-        # add static route for management
-        self.wait_write("router static")
-        self.wait_write("vrf clab-mgmt")
-        self.wait_write("address-family ipv4 unicast")
-        self.wait_write("0.0.0.0/0 10.0.0.2")
-        self.wait_write("exit")
-        self.wait_write("exit")
-        self.wait_write("exit")
-      
-        # configure ssh & netconf w/ vrf
-        self.wait_write("ssh server v2")
-        self.wait_write("ssh server vrf clab-mgmt")
-        self.wait_write("ssh server netconf port 830")  # for 5.1.1
-        self.wait_write("ssh server netconf vrf clab-mgmt")  # for 5.3.3
-        self.wait_write("netconf agent ssh")  # for 5.1.1
-        self.wait_write("netconf-yang agent ssh")  # for 5.3.3
-        
-        # configure gNMI
-        self.wait_write("grpc port 57400")
-        self.wait_write("grpc vrf clab-mgmt")
-        self.wait_write("grpc no-tls")
-        
-        # configure xml agent
-        self.wait_write("xml agent tty")
-        
-        # configure mgmt interface
-        self.wait_write("interface MgmtEth 0/0/CPU0/0")
-        self.wait_write("vrf clab-mgmt")
-        self.wait_write("no shutdown")
-        self.wait_write("ipv4 address 10.0.0.15/24")
-        self.wait_write("exit")
-        self.wait_write("commit")
-        self.wait_write("exit")
+        con = IOSXRDriver(**xrv_scrapli_dev)
+        con.commandeer(conn=self.scrapli_tn)
 
-    def startup_config(self):
-        """Load additional config provided by user."""
+        if os.path.exists(STARTUP_CONFIG_FILE):
+            self.logger.info("Startup configuration file found")
+            with open(STARTUP_CONFIG_FILE, "r") as config:
+                xrv_config += config.read()
+        else:
+            self.logger.warning("User provided startup configuration is not found.")
 
-        if not os.path.exists(STARTUP_CONFIG_FILE):
-            self.logger.trace(f"Startup config file {STARTUP_CONFIG_FILE} is not found")
-            return
+        # configure SSH keys
+        con.send_interactive(
+            [
+                (
+                    "crypto key generate rsa",
+                    "How many bits in the modulus [2048]",
+                    False,
+                ),
+                ("2048", "#", True),
+            ]
+        )
 
-        self.logger.trace(f"Startup config file {STARTUP_CONFIG_FILE} exists")
-        with open(STARTUP_CONFIG_FILE) as file:
-            config_lines = file.readlines()
-            config_lines = [line.rstrip() for line in config_lines]
-            self.logger.trace(f"Parsed startup config file {STARTUP_CONFIG_FILE}")
+        res = con.send_configs(xrv_config.splitlines())
+        res += con.send_configs(["commit best-effort label CLAB_BOOTSTRAP", "end"])
 
-        self.logger.info(f"Writing lines from {STARTUP_CONFIG_FILE}")
+        for response in res:
+            self.logger.info(f"CONFIG:{response.channel_input}")
+            self.logger.info(f"RESULT:{response.result}")
 
-        self.wait_write("configure")
-        # Apply lines from file
-        for line in config_lines:
-            self.wait_write(line)
-        # Commit and GTFO
-        self.wait_write("commit")
-        self.wait_write("exit")
+        con.close()
 
 
 class XRV(vrnetlab.VR):
@@ -269,7 +244,6 @@ if __name__ == "__main__":
         )
     )
 
-    logger.debug(f"Environment variables: {os.environ}")
     vrnetlab.boot_delay()
 
     vr = XRV(args.hostname, args.username, args.password, args.connection_mode)

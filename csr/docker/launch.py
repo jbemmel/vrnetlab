@@ -7,7 +7,7 @@ import re
 import signal
 import subprocess
 import sys
-import time
+from time import sleep
 
 import vrnetlab
 
@@ -55,40 +55,119 @@ class CSR_vm(vrnetlab.VM):
             logger.info("License found")
             self.license = True
 
-        super(CSR_vm, self).__init__(username, password, disk_image=disk_image)
+        super(CSR_vm, self).__init__(
+            username, password, disk_image=disk_image, use_scrapli=True
+        )
 
         self.install_mode = install_mode
         self.num_nics = nics
         self.hostname = hostname
         self.conn_mode = conn_mode
         self.nic_type = "virtio-net-pci"
+        self.image_name = "config.iso"
 
         if self.install_mode:
-            logger.trace("install mode")
-            self.image_name = "config.iso"
-            self.create_boot_image()
+            self.logger.debug("Install mode")
+            self.create_config_image(self.gen_install_config())
+        else:
+            cfg = self.gen_bootstrap_config()
+            if os.path.exists(STARTUP_CONFIG_FILE):
+                self.logger.info("Startup configuration file found")
+                with open(STARTUP_CONFIG_FILE, "r") as startup_config:
+                    cfg += startup_config.read()
+            else:
+                self.logger.warning(
+                    f"User provided startup configuration is not found."
+                )
+            self.create_config_image(cfg)
 
-            self.qemu_args.extend(["-cdrom", "/" + self.image_name])
+        self.qemu_args.extend(["-cdrom", "/" + self.image_name])
 
-    def create_boot_image(self):
-        """Creates a iso image with a bootstrap configuration"""
+    def gen_install_config(self) -> str:
+        """
+        Returns the configuration to load in install mode
+        """
 
-        cfg_file = open("/iosxe_config.txt", "w")
+        config = ""
+
         if self.license:
-            cfg_file.write("do clock set 13:33:37 1 Jan 2010\r\n")
-            cfg_file.write("interface GigabitEthernet1\r\n")
-            cfg_file.write("ip address 10.0.0.15 255.255.255.0\r\n")
-            cfg_file.write("no shut\r\n")
-            cfg_file.write("exit\r\n")
-            cfg_file.write("license accept end user agreement\r\n")
-            cfg_file.write("yes\r\n")
-            cfg_file.write("do license install tftp://10.0.0.2/license.lic\r\n\r\n")
+            config += """do clock set 13:33:37 1 Jan 2010
+interface GigabitEthernet1
+ip address 10.0.0.15 255.255.255.0
+no shut
+exit
+license accept end user agreement
+yes
+do license install tftp://10.0.0.2/license.lic
+"""
 
-        cfg_file.write("platform console serial\r\n\r\n")
-        cfg_file.write("do clear platform software vnic-if nvtable\r\n\r\n")
-        cfg_file.write("do wr\r\n")
-        cfg_file.write("do reload\r\n")
-        cfg_file.close()
+        config += """
+platform console serial
+do clear platform software vnic-if nvtable
+do wr
+do reload
+"""
+
+        return config
+
+    def gen_bootstrap_config(self) -> str:
+        """
+        Returns the system bootstrap configuration
+        """
+
+        v4_mgmt_address = vrnetlab.cidr_to_ddn(self.mgmt_address_ipv4)
+
+        ip_domain_name = (
+            "ip domain name example.com"
+            if int(self.version.split(".")[0]) >= 16
+            else "ip domain-name example.com"
+        )
+
+        return f"""hostname {self.hostname}
+username {self.username} privilege 15 password {self.password}
+{ip_domain_name}
+!
+crypto key generate rsa modulus 2048
+!
+line con 0
+logging synchronous
+!
+line vty 0 4
+logging synchronous
+login local
+transport input all
+!
+ipv6 unicast-routing
+!
+vrf definition clab-mgmt
+description Containerlab management VRF (DO NOT DELETE)
+address-family ipv4
+exit
+address-family ipv6
+exit
+exit
+!
+ip route vrf clab-mgmt 0.0.0.0 0.0.0.0 {self.mgmt_gw_ipv4}
+ipv6 route vrf clab-mgmt ::/0 {self.mgmt_gw_ipv6}
+!
+interface GigabitEthernet 1
+description Containerlab management interface
+vrf forwarding clab-mgmt
+ip address {v4_mgmt_address[0]} {v4_mgmt_address[1]}
+ipv6 address {self.mgmt_address_ipv6}
+no shut
+exit
+!
+restconf
+netconf-yang
+!
+"""
+
+    def create_config_image(self, config):
+        """Creates a iso image with a installation configuration"""
+
+        with open("/iosxe_config.txt", "w") as cfg:
+            cfg.write(config)
 
         genisoimage_args = [
             "genisoimage",
@@ -98,7 +177,8 @@ class CSR_vm(vrnetlab.VM):
             "/iosxe_config.txt",
         ]
 
-        subprocess.Popen(genisoimage_args)
+        self.logger.debug("Generating boot ISO")
+        subprocess.Popen(genisoimage_args).wait()
 
     def bootstrap_spin(self):
         """This function should be called periodically to do work."""
@@ -109,31 +189,31 @@ class CSR_vm(vrnetlab.VM):
             self.start()
             return
 
-        (ridx, match, res) = self.tn.expect([b"Press RETURN to get started!"], 1)
+        (ridx, match, res) = self.con_expect(
+            [b"CVAC-4-CONFIG_DONE", b"Press RETURN to get started!"]
+        )
         if match:  # got a match!
-            if ridx == 0:  # login
-                if self.install_mode:
-                    self.running = True
-                    return
-
-                self.logger.debug("matched, Press RETURN to get started.")
-                self.wait_write("", wait=None)
-
-                # run main config!
-                self.bootstrap_config()
-                self.startup_config()
-                self.running = True
+            if ridx == 0 and not self.install_mode:  # configuration applied
+                self.logger.info("CVAC Configuration has been applied.")
                 # close telnet connection
-                self.tn.close()
+                self.scrapli_tn.close()
                 # startup time?
                 startup_time = datetime.datetime.now() - self.start_time
-                self.logger.info("Startup complete in: %s" % startup_time)
+                self.logger.info("Startup complete in: %s", startup_time)
+                # mark as running
+                self.running = True
                 return
+            elif ridx == 1:  # IOSXEBOOT-4-FACTORY_RESET
+                if self.install_mode:
+                    install_time = datetime.datetime.now() - self.start_time
+                    self.logger.info("Install complete in: %s", install_time)
+                    self.running = True
+                    return
 
         # no match, if we saw some output from the router it's probably
         # booting, so let's give it some more time
         if res != b"":
-            self.logger.trace("OUTPUT: %s" % res.decode())
+            self.write_to_stdout(res)
             # reset spins if we saw some output
             self.spins = 0
 
@@ -141,69 +221,9 @@ class CSR_vm(vrnetlab.VM):
 
         return
 
-    def bootstrap_config(self):
-        """Do the actual bootstrap config"""
-        self.logger.info("applying bootstrap configuration")
-
-        self.wait_write("", None)
-        self.wait_write("enable", wait=">")
-        self.wait_write("configure terminal", wait=">")
-
-        self.wait_write("hostname %s" % (self.hostname))
-        self.wait_write(
-            "username %s privilege 15 password %s" % (self.username, self.password)
-        )
-        if int(self.version.split('.')[0]) >= 16:
-           self.wait_write("ip domain name example.com")
-        else:
-           self.wait_write("ip domain-name example.com")
-        self.wait_write("crypto key generate rsa modulus 2048")
-        
-        self.wait_write("vrf definition clab-mgmt")
-        self.wait_write("address-family ipv4")
-        self.wait_write("exit")
-        self.wait_write("description Containerlab management VRF (DO NOT DELETE)")
-        self.wait_write("exit")
-
-        self.wait_write("ip route vrf clab-mgmt 0.0.0.0 0.0.0.0 10.0.0.2")
-
-        self.wait_write("interface GigabitEthernet1")
-        self.wait_write("vrf forwarding clab-mgmt")
-        self.wait_write("ip address 10.0.0.15 255.255.255.0")
-        self.wait_write("no shut")
-        self.wait_write("exit")
-        self.wait_write("restconf")
-        self.wait_write("netconf-yang")
-
-        self.wait_write("line vty 0 4")
-        self.wait_write("login local")
-        self.wait_write("transport input all")
-        self.wait_write("end")
-        self.wait_write("copy running-config startup-config")
-        self.wait_write("\r", None)
-
-    def startup_config(self):
-        """Load additional config provided by user."""
-
-        if not os.path.exists(STARTUP_CONFIG_FILE):
-            self.logger.trace(f"Startup config file {STARTUP_CONFIG_FILE} is not found")
-            return
-
-        self.logger.trace(f"Startup config file {STARTUP_CONFIG_FILE} exists")
-        with open(STARTUP_CONFIG_FILE) as file:
-            config_lines = file.readlines()
-            config_lines = [line.rstrip() for line in config_lines]
-            self.logger.trace(f"Parsed startup config file {STARTUP_CONFIG_FILE}")
-
-        self.logger.info(f"Writing lines from {STARTUP_CONFIG_FILE}")
-
-        self.wait_write("configure terminal")
-        # Apply lines from file
-        for line in config_lines:
-            self.wait_write(line)
-        # End and Save
-        self.wait_write("end")
-        self.wait_write("copy running-config startup-config")
+    # Override management MAC with specific static MAC address
+    def get_mgmt_mac(self):
+        return "c0:00:01:00:ca:fe"
 
 
 class CSR(vrnetlab.VR):
@@ -237,7 +257,7 @@ class CSR_installer(CSR):
         csr = self.vms[0]
         while not csr.running:
             csr.work()
-        time.sleep(30)
+        sleep(30)
         csr.stop()
         self.logger.info("Installation complete")
 
